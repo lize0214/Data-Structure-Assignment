@@ -1,5 +1,4 @@
 package com.mycompany.dataassignment.ADT;
-
 import java.io.Serializable;
 
 /**
