@@ -1,0 +1,11 @@
+101,Single,120.0,Available
+102,Single,120.0,Occupied
+103,Deluxe,250.0,Dirty
+104,Deluxe,250.0,CleaningInProgress
+105,Suite,480.0,Inspected
+106,Suite,480.0,ReadyForCheckIn
+201,Single,120.0,Available
+202,Deluxe,250.0,Available
+203,Suite,480.0,Occupied
+204,Presidential,900.0,Available
+205,Deluxe,260.0,Dirty
