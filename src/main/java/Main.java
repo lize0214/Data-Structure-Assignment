@@ -16,6 +16,9 @@ public class Main {
         RoomController roomController = new RoomController();
         Room room = new Room("205", "Deluxe", 260.00, "Dirty");
         ControllerResult result = roomController.add(room);
+        System.out.println(result);
+        
+        // abc123
         System.out.println(result); 
         //hiiiii
     }
