@@ -1,4 +1,4 @@
-package com.mycompany.dataassignment.ADT;
+package ADT;
 
 import java.util.Iterator;
 

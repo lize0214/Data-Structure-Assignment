@@ -1,4 +1,4 @@
-package com.mycompany.dataassignment.ADT;
+package ADT;
 
 /**
  * ArrayStack.java A class that implements the ADT Stack using an array.

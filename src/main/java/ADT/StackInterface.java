@@ -1,4 +1,4 @@
-package com.mycompany.dataassignment.ADT;
+package ADT;
 
 /**
  * An interface for the ADT Stack.

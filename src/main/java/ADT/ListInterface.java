@@ -1,4 +1,4 @@
-package com.mycompany.dataassignment.ADT;
+package ADT;
 
 /**
  * ListInterface.java An interface for the ADT List. Entries in the list have
@@ -8,6 +8,8 @@ package com.mycompany.dataassignment.ADT;
  * @version 2.0
  */
 public interface ListInterface<T> {
+    
+  public int size();
 
   /**
    * Task: Adds a new entry to the end of the list. Entries currently in the
