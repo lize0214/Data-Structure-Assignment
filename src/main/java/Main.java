@@ -23,5 +23,11 @@ public class Main {
 
         MainMenuUI mainMenuUI = new MainMenuUI();
         mainMenuUI.run();
+        System.out.println(result);
+        
+        // abc123
+        System.out.println(result); 
+        //hiiiii
+        //bye
     }
 }
