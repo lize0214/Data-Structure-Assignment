@@ -9,5 +9,7 @@ package Boundery;
  * @author USER
  */
 public class WalkInRegistrationUI {
-    
+    public void run() {
+        System.out.println("WalkInregistration Menu");
+    }
 }
