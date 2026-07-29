@@ -9,5 +9,7 @@ package Boundery;
  * @author USER
  */
 public class ReportUI {
-    
+    public void run() {
+        System.out.println("Report Menu");
+    }
 }

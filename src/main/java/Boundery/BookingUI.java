@@ -9,5 +9,7 @@ package Boundery;
  * @author USER
  */
 public class BookingUI {
-    
+    public void run() {
+        System.out.println("Booking Menu");
+    }
 }

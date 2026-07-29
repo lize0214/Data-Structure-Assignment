@@ -9,5 +9,7 @@ package Boundery;
  * @author USER
  */
 public class LoyaltyUI {
-    
+    public void run() {
+        System.out.println("Loyalty Menu");
+    }
 }

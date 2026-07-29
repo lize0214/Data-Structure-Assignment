@@ -9,5 +9,7 @@ package Boundery;
  * @author USER
  */
 public class HousekeepingUI {
-    
+    public void run() {
+        System.out.println("Housekeeping Menu");
+    }
 }

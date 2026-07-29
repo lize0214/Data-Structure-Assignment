@@ -48,8 +48,10 @@ public class ValidationUtility {
 
     // ───────────────────── Enum Validation ─────────────────────
 
-    private static final String[] ROOM_STATUSES = {"Available", "Occupied", "Dirty", "Maintenance"};
-    private static final String[] BOOKING_STATUSES = {"Confirmed", "Checked-in", "Checked-out", "Cancelled"};
+    private static final String[] ROOM_STATUSES = {
+        "Available", "Occupied", "Dirty", "CleaningInProgress", "Inspected", "ReadyForCheckIn", "Maintenance"
+    };
+    private static final String[] BOOKING_STATUSES = {"Confirmed", "CheckedIn", "CheckedOut", "Cancelled"};
     private static final String[] MEMBER_TIERS = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
 
     public static String validateRoomStatus(String status) {
