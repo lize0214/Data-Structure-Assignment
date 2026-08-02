@@ -1,0 +1,8 @@
+R001,Welcome Gift Basket,Others,300,15
+R002,Dinner for Two,Dining,1500,8
+R003,Spa Voucher,Spa,2500,2
+R004,Free Breakfast,Dining,500,20
+R005,Airport Transfer,Others,1200,5
+R006,Late Checkout,Room,800,10
+R007,Executive Lounge Access,Room,5000,3
+R008,Room Upgrade,Room,3000,1
