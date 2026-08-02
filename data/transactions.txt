@@ -1,0 +1,10 @@
+TXN0001,M001,21000,REGISTER,Registration Starting Points,2026-07-10
+TXN0002,M002,9700,REGISTER,Registration Starting Points,2026-07-10
+TXN0003,M003,4900,REGISTER,Registration Starting Points,2026-07-10
+TXN0004,M004,1800,REGISTER,Registration Starting Points,2026-07-10
+TXN0005,M005,450,REGISTER,Registration Starting Points,2026-07-10
+TXN0006,M001,-3000,REDEEM,Redeemed Room Upgrade,2026-07-15
+TXN0007,M002,-2500,REDEEM,Redeemed Spa Voucher,2026-07-20
+TXN0008,M001,-5000,REDEEM,Redeemed Executive Lounge Access,2026-07-22
+TXN0009,M003,-1500,REDEEM,Redeemed Dinner for Two,2026-07-25
+TXN0010,M001,-500,REDEEM,Redeemed Free Breakfast,2026-07-28
