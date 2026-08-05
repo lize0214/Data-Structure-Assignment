@@ -53,6 +53,8 @@ public class ValidationUtility {
     };
     private static final String[] BOOKING_STATUSES = {"Confirmed", "CheckedIn", "CheckedOut", "Cancelled"};
     private static final String[] MEMBER_TIERS = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
+    private static final String[] ROOM_TYPES = {"Single", "Deluxe", "Suite", "Presidential"};
+    private static final String[] VIP_TIERS = {"Elite", "Diamond", "Platinum"};
 
     public static String validateRoomStatus(String status) {
         for (String s : ROOM_STATUSES) {
@@ -73,6 +75,31 @@ public class ValidationUtility {
             if (t.equalsIgnoreCase(tier)) return null;
         }
         return "Invalid member tier: " + tier + " (options: " + String.join(", ", MEMBER_TIERS) + ")";
+    }
+
+    public static String validateRoomType(String roomType) {
+        if (roomType == null || roomType.trim().isEmpty()) {
+            return null; // optional field — empty is valid
+        }
+        for (String t : ROOM_TYPES) {
+            if (t.equalsIgnoreCase(roomType.trim())) return null;
+        }
+        return "Invalid room type: " + roomType + " (options: " + String.join(", ", ROOM_TYPES) + ")";
+    }
+
+    /**
+     * Validates that a tier is eligible for VIP priority allocation
+     * (Elite, Diamond, or Platinum only — Silver and Gold are rejected).
+     */
+    public static String validateVIPAllocationTier(String tier) {
+        if (tier == null || tier.trim().isEmpty()) {
+            return "Tier cannot be empty";
+        }
+        for (String t : VIP_TIERS) {
+            if (t.equalsIgnoreCase(tier.trim())) return null;
+        }
+        return "Tier '" + tier + "' is not eligible for VIP priority allocation."
+                + " Only Elite, Diamond, and Platinum members qualify.";
     }
 
     // ───────────────────── Date Validation ─────────────────────
