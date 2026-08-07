@@ -3,6 +3,7 @@ package Control;
 import Entity.Guest;
 import Entity.Room;
 import Entity.Booking;
+import ADT.ListInterface;
 import Utility.ControllerResult;
 import Utility.ValidationUtility;
 
@@ -125,5 +126,52 @@ public class BookingController extends AbstractEntityController<Booking, String>
         booking.setBookingStatus(bookingStatus);
         saveToFile();
         return ControllerResult.success();
+    }
+
+    /**
+     * Generates the Registration Report: all bookings that originated from a
+     * Walk-In Registration (confirmation numbers prefixed "WI"), sorted by
+     * confirmation number using a manual selection sort (no Java Collections
+     * Framework). This is a historical log of processed walk-ins, distinct
+     * from the Waiting List Report, which shows guests not yet processed.
+     */
+    public Booking[] getWalkInRegistrationReport() {
+        ListInterface<Booking> all = getAll();
+        String walkInPrefix = "WI";
+
+        int matchCount = 0;
+        for (int i = 1; i <= all.size(); i++) {
+            if (all.getEntry(i).getConfirmationNo().startsWith(walkInPrefix)) {
+                matchCount++;
+            }
+        }
+
+        Booking[] filtered = new Booking[matchCount];
+        int index = 0;
+        for (int i = 1; i <= all.size(); i++) {
+            Booking booking = all.getEntry(i);
+            if (booking.getConfirmationNo().startsWith(walkInPrefix)) {
+                filtered[index++] = booking;
+            }
+        }
+
+        selectionSortByConfirmationNo(filtered);
+        return filtered;
+    }
+
+    private void selectionSortByConfirmationNo(Booking[] bookings) {
+        for (int i = 0; i < bookings.length - 1; i++) {
+            int minIndex = i;
+            for (int j = i + 1; j < bookings.length; j++) {
+                if (bookings[j].getConfirmationNo().compareTo(bookings[minIndex].getConfirmationNo()) < 0) {
+                    minIndex = j;
+                }
+            }
+            if (minIndex != i) {
+                Booking temp = bookings[i];
+                bookings[i] = bookings[minIndex];
+                bookings[minIndex] = temp;
+            }
+        }
     }
 }
