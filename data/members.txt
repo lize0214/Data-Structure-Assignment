@@ -1,4 +1,4 @@
-M001,Tan Wei Ling,Platinum,15200
+M001,Tan Wei Ling,Platinum,15350
 M002,Ahmad Faiz,Gold,4300
 M003,Nurul Aina,Diamond,9800
 M004,Ravi Kumar,Silver,850
@@ -6,3 +6,4 @@ M005,Lim Jia Hui,Elite,7200
 M006,Siti Zubaidah,Gold,3100
 M007,Chong Kah Meng,Platinum,21000
 M008,Priya Devi,Silver,600
+
