@@ -1,33 +1,8 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package ADT;
 
-import java.util.List;
-
-/**
- * Hash table using separate chaining for collision resolution.
- * Each bucket is a singly linked list of Node<K,V>, built from scratch
- * to keep it consistent with the rest of the project's custom ADT implementations.
- *
- * Design choices:
- *  - Capacity defaults to 101 (a prime number) to spread keys more evenly
- *    and reduce clustering versus a round number like 100.
- *  - Hash function: for String keys (e.g. 8-digit confirmation numbers)
- *    we sum the digit values weighted by position, which avoids the
- *    "different confirmation numbers -> same bucket" clustering you can
- *    get from a naive digit sum. Falls back to key.hashCode() for any
- *    other key type so the class stays generic.
- */
 public class HashTable<K, V> implements HashTableInterface<K, V> {
 
     private static final int DEFAULT_CAPACITY = 101;
-
-    @Override
-    public List<V> values() {
-        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
-    }
 
     private static class Node<K, V> {
         K key;
@@ -142,5 +117,23 @@ public class HashTable<K, V> implements HashTableInterface<K, V> {
     public boolean contains(K key) {
         return search(key) != null;
     }
-}
 
+    @Override
+    public ListInterface<V> values() {
+
+        ListInterface<V> all =
+                new ArrayList<>();
+
+        for (Node<K, V> head : buckets) {
+
+            Node<K, V> current = head;
+
+            while (current != null) {
+                all.add(current.value);
+                current = current.next;
+            }
+        }
+
+        return all;
+    }
+}
