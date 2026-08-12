@@ -55,8 +55,23 @@ public class FrontDeskUI {
         "                /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'",
         "             (_/  `----'                             `--._/    "
     };
+    
+    private static final String[] BANNER_BOOKINGENQUIRY = {
+        "                .-.                                            \n" +
+        "               (_) )-.               /      .-.                \n" +
+        "                  / __)  .-._..-._. /-.     `-'.  .-.    .-.   \n" +
+        "                 /    `.(   )(   ) /   )   /    )/   )  (   )  \n" +
+        "                /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-' \n" +
+        "             (_/  `----'                             `--._/    \n" +
+        "                       .-                                      \n" +
+        "               .---;`-'                     .-.                \n" +
+        "              (   (_) .  .-.  .-.  )  (     `-' ).--..    .-.  \n" +
+        "               )--     )/   )(   )(    )   /   /      )  /     \n" +
+        "              (      /'/   (  `-(  `--':_.(__./      (_.'      \n" +
+        "              `\\___.'       `-   `-'               ..-._)       "
+    };
 
-    private static final String[] BANNER_AVAILABILITY = {
+    private static final String[] BANNER_ASSIGNEDROOM = {
         "                 /\\                                             .           ", 
         "             _  / |                 .-.                        /             ", 
         "            (  /  |  .  .    .      `-'.-.  .  .-.   .-.  .-../              ", 
@@ -198,44 +213,49 @@ public class FrontDeskUI {
 
     public void run() {
         boolean running = true;
+
         while (running) {
             clearScreen();
             printMenu();
+
             String choice = scanner.nextLine().trim();
 
             switch (choice) {
+
                 case "1":
-                    runSearchMenu();
+                    runBookingEnquiryMenu();
                     break;
+
                 case "2":
-                    handleAvailability();
-                    pressEnterToContinue();
-                    break;
-                case "3":
                     handleBilling();
                     pressEnterToContinue();
                     break;
-                case "4":
+
+                case "3":
                     handleCheckOut();
                     pressEnterToContinue();
                     break;
-                case "5":
-                    handleViewAllBookings();
-                    break;
-                case "6":
+
+                case "4":
                     runGuestMovementMenu();
                     break;
-                case "7":
+
+                case "5":
                     runReportsMenu();
                     break;
+
                 case "0":
                     clearScreen();
                     running = false;
-                    System.out.println("Returning to Main Menu...\n");
+                    System.out.println(
+                            "Returning to Main Menu...\n"
+                    );
                     break;
+
                 default:
-                    System.out.println("Invalid option, please try again.\n");
-                    continue;
+                    System.out.println(
+                            "\nInvalid option, please try again."
+                    );
             }
         }
     }
@@ -244,13 +264,11 @@ public class FrontDeskUI {
         printBanner(BANNER_MAIN);
         System.out.print(
                 "------------------------------------------------------------------------------\n" +
-                "                          1. Search Booking                                   \n" +
-                "                          2. Check Assigned Room Status                       \n" +
-                "                          3. View Billing Details                             \n" +
-                "                          4. Check-Out Guest                                  \n" +
-                "                          5. View All Bookings                                \n" +
-                "                          6. Today's Guest Movement                           \n" +
-                "                          7. Generate Reports                                 \n" +
+                "                          1. Booking Enquiry                                   \n" +
+                "                          2. View Billing Details                              \n" +
+                "                          3. Check-Out Guest                                  \n" +
+                "                          4. Today's Guest Movement                           \n" +
+                "                          5. Generate Reports                                 \n" +
                 "                          0. Return to Main Menu                              \n" +
                 "------------------------------------------------------------------------------\n" +
                 "Enter your choice: "
@@ -275,6 +293,55 @@ public class FrontDeskUI {
      * case-insensitive match can't be hashed to a single bucket the way an
      * exact key can. Keeping both here makes the trade-off easy to point to.
      */
+    
+    private void runBookingEnquiryMenu() {
+
+    boolean running = true;
+
+        while (running) {
+
+            clearScreen();
+            printBanner(BANNER_BOOKINGENQUIRY);
+
+            System.out.print(
+                    "------------------------------------------------------------------------------\n" +
+                    "                         1. Search Booking                                    \n" +
+                    "                         2. Check Assigned Room Status                       \n" +
+                    "                         3. View All Bookings                                \n" +
+                    "                         0. Back                                             \n" +
+                    "------------------------------------------------------------------------------\n" +
+                    "Enter your choice: "
+            );
+
+            String choice = scanner.nextLine().trim();
+
+            switch (choice) {
+
+                case "1":
+                    runSearchMenu();
+                    break;
+
+                case "2":
+                    handleAvailability();
+                    pressEnterToContinue();
+                    break;
+
+                case "3":
+                    handleViewAllBookings();
+                    break;
+
+                case "0":
+                    running = false;
+                    break;
+
+                default:
+                    System.out.println(
+                            "\nInvalid option, please try again."
+                    );
+            }
+        }
+    }
+    
     private void runSearchMenu() {
         boolean inSearch = true;
 
@@ -331,7 +398,7 @@ public class FrontDeskUI {
 
     private void handleAvailability() {
         clearScreen();
-        printBanner(BANNER_AVAILABILITY);
+        printBanner(BANNER_ASSIGNEDROOM);
         System.out.println("------------------------------------------------------------------------------");
         String confNo = readConfNo();
         ControllerResult result = controller.checkAssignedRoomStatus(confNo);
