@@ -86,7 +86,7 @@ public class MainMenuUI {
                 "                        (_/     `-._)  /                                     \n" +
                 "------------------------------------------------------------------------------\n" +
                 "                         1. Booking & Registration                            \n" +
-                "                         2. Front Desk                                        \n" +
+                "                         2. Front Desk Service                                \n" +
                 "                         3. VIP Room Allocation                               \n" +
                 "                         4. Loyalty Management                                \n" +
                 "                         5. Housekeeping                                      \n" +
