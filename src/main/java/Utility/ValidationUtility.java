@@ -55,6 +55,7 @@ public class ValidationUtility {
     private static final String[] MEMBER_TIERS = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
     private static final String[] ROOM_TYPES = {"Single", "Deluxe", "Suite", "Presidential"};
     private static final String[] VIP_TIERS = {"Elite", "Diamond", "Platinum"};
+    private static final String[] PAYMENT_METHODS = {"Cash", "Card", "E-wallet"};
 
     public static String validateRoomStatus(String status) {
         for (String s : ROOM_STATUSES) {
@@ -100,6 +101,13 @@ public class ValidationUtility {
         }
         return "Tier '" + tier + "' is not eligible for VIP priority allocation."
                 + " Only Elite, Diamond, and Platinum members qualify.";
+    }
+    
+    public static String validatePaymentMethod(String method) {
+        for (String m : PAYMENT_METHODS) {
+            if (m.equalsIgnoreCase(method)) return null;
+        }
+        return "Invalid payment method: " + method + " (options: " + String.join(", ", PAYMENT_METHODS) + ")";
     }
 
     // ───────────────────── Date Validation ─────────────────────
