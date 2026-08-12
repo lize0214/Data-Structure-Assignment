@@ -244,12 +244,12 @@ public class FrontDeskUI {
                     runReportsMenu();
                     break;
 
-                case "0":
-                    clearScreen();
+                case "0": 
                     running = false;
                     System.out.println(
                             "Returning to Main Menu...\n"
                     );
+                    clearScreen();
                     break;
 
                 default:
