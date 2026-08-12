@@ -77,6 +77,47 @@ public class CircularArrayQueue<T> implements QueueInterface<T> {
 
   @Override
   public Iterator<T> getIterator() {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    return new CircularArrayQueueIterator();
+  }
+
+  private class CircularArrayQueueIterator implements Iterator<T> {
+    private int nextIndex;          // next array slot to read
+    private int count;              // how many entries already returned
+    private final int totalEntries; // number of entries in the queue at iterator creation
+
+    private CircularArrayQueueIterator() {
+      nextIndex = frontIndex;
+      count = 0;
+      totalEntries = size();
+    }
+
+    @Override
+    public boolean hasNext() {
+      return count < totalEntries;
+    }
+
+    @Override
+    public T next() {
+      if (hasNext()) {
+        T nextEntry = array[nextIndex];
+        nextIndex = (nextIndex + 1) % array.length; // wrap around
+        count++;
+        return nextEntry;
+      } else {
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Task: Counts the number of entries currently in the queue.
+   * @return the number of entries in the queue
+   */
+  public int size() {
+    if (isEmpty()) {
+      return 0;
+    }
+    int distance = (backIndex - frontIndex + array.length) % array.length;
+    return distance + 1;
   }
 }

@@ -34,30 +34,26 @@ public class MainMenuUI {
                     break;
 
                 case "2":
-                    openWalkInRegistrationMenu();
-                    break;
-
-                case "3":
                     openFrontDeskMenu();
                     break;
 
-                case "4":
+                case "3":
                     openVIPAllocationMenu();
                     break;
 
-                case "5":
+                case "4":
                     openLoyaltyMenu();
                     break;
 
-                case "6":
+                case "5":
                     openHousekeepingMenu();
                     break;
 
-                case "7":
+                case "6":
                     openReportMenu();
                     break;
 
-                case "8":
+                case "7":
                     running = false;
                     System.out.println(
                             "\nThank you for using the Hotel Management System."
@@ -66,7 +62,7 @@ public class MainMenuUI {
 
                 default:
                     System.out.println(
-                            "\nInvalid option. Please enter a number from 1 to 8.\n"
+                            "\nInvalid option. Please enter a number from 1 to 7.\n"
                     );
             }
         }
@@ -89,29 +85,21 @@ public class MainMenuUI {
                 "                         .-/  `--' (__.'/ ._)`-'/       /                    \n" +
                 "                        (_/     `-._)  /                                     \n" +
                 "------------------------------------------------------------------------------\n" +
-                "                         1. Booking                                           \n" +
-                "                         2. Walk-In Registration                              \n" +
-                "                         3. Front Desk Service                                \n" +
-                "                         4. VIP Room Allocation                               \n" +
-                "                         5. Loyalty Management                                \n" +
-                "                         6. Housekeeping                                      \n" +
-                "                         7. Reports                                           \n" +
-                "                         8. Exit System                                       \n" +
+                "                         1. Booking & Registration                            \n" +
+                "                         2. Front Desk                                        \n" +
+                "                         3. VIP Room Allocation                               \n" +
+                "                         4. Loyalty Management                                \n" +
+                "                         5. Housekeeping                                      \n" +
+                "                         6. Reports                                           \n" +
+                "                         7. Exit System                                       \n" +
                 "------------------------------------------------------------------------------\n" +
-                "Enter 1 - 8 to select an option: "
+                "Enter 1 - 7 to select an option: "
         );
     }
 
     private void openBookingMenu() {
         BookingUI bookingUI = new BookingUI();
         bookingUI.run();
-    }
-
-    private void openWalkInRegistrationMenu() {
-        WalkInRegistrationUI walkInRegistrationUI =
-                new WalkInRegistrationUI();
-
-        walkInRegistrationUI.run();
     }
 
     private void openFrontDeskMenu() {
