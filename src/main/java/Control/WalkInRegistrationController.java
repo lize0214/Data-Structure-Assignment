@@ -1,7 +1,8 @@
-// Author: [Your Name]
+// Author: Ben Chin
 package Control;
 
 import ADT.QueueInterface;
+import ADT.QueueIterator;
 import ADT.CircularArrayQueue;
 import ADT.ListInterface;
 import Entity.Guest;
@@ -12,8 +13,6 @@ import Utility.ValidationUtility;
 import Utility.FileUtility;
 
 import java.time.LocalDate;
-import java.util.Iterator;
-
 public class WalkInRegistrationController {
 
     private static final String ROOM_AVAILABLE_STATUS = "Available";
@@ -57,6 +56,14 @@ public class WalkInRegistrationController {
             return ControllerResult.fail(error);
         }
 
+        QueueIterator<Guest> duplicateCheck = waitingQueue.getIterator();
+        while (duplicateCheck.hasNext()) {
+            if (duplicateCheck.next().getGuestId().equalsIgnoreCase(guest.getGuestId())) {
+                return ControllerResult.fail("Guest " + guest.getGuestId()
+                        + " is already in the walk-in queue.");
+            }
+        }
+
         // Add guest into guest records if the guest does not exist
         if (guestController.findByKey(guest.getGuestId()) == null) {
 
@@ -75,6 +82,10 @@ public class WalkInRegistrationController {
                 "Guest " + guest.getName()
                 + " added to walk-in queue."
         );
+    }
+
+    public ControllerResult registerWalkIn(String guestId, String name, String contact) {
+        return registerWalkIn(new Guest(guestId, name, contact));
     }
 
     /**
@@ -98,6 +109,9 @@ public class WalkInRegistrationController {
 
         if (dateError != null) {
             return ControllerResult.fail(dateError);
+        }
+        if (checkInDate.isBefore(LocalDate.now())) {
+            return ControllerResult.fail("Check-in date cannot be in the past.");
         }
 
         Guest guest = waitingQueue.dequeue();
@@ -235,6 +249,22 @@ public class WalkInRegistrationController {
         return waitingQueue.getFront();
     }
 
+    public String getNextGuestName() {
+        Guest guest = peekNextGuest();
+        return guest == null ? null : guest.getName();
+    }
+
+    public String[] getQueueDisplayRows() {
+        ListInterface<Guest> snapshot = viewQueue();
+        String[] rows = new String[snapshot.size()];
+        for (int i = 1; i <= snapshot.size(); i++) {
+            Guest guest = snapshot.getEntry(i);
+            rows[i - 1] = String.format("%-5d %-25s %-10s %-15s",
+                    i, guest.getName(), guest.getGuestId(), guest.getContact());
+        }
+        return rows;
+    }
+
     /**
      * Checks whether the waiting queue is empty.
      */
@@ -250,7 +280,7 @@ public class WalkInRegistrationController {
         ListInterface<Guest> snapshot =
                 new ADT.ArrayList<>();
 
-        Iterator<Guest> iterator =
+        QueueIterator<Guest> iterator =
                 waitingQueue.getIterator();
 
         while (iterator.hasNext()) {
@@ -265,20 +295,30 @@ public class WalkInRegistrationController {
      * sorted alphabetically by guest name.
      */
     public Guest[] getWaitingListReport() {
+        return getWaitingListReport("", "");
+    }
+
+    /** Linear search by name/ID and contact, followed by selection sort by name. */
+    public Guest[] getWaitingListReport(String guestKeyword, String contactKeyword) {
 
         ListInterface<Guest> queueSnapshot =
                 viewQueue();
 
-        Guest[] guests =
-                new Guest[queueSnapshot.size()];
+        int matchCount = 0;
+        for (int i = 1; i <= queueSnapshot.size(); i++) {
+            if (matchesWaitingFilters(queueSnapshot.getEntry(i), guestKeyword, contactKeyword)) {
+                matchCount++;
+            }
+        }
 
-        // Copy guests from ListInterface into array
-        for (int i = 1;
-                i <= queueSnapshot.size();
-                i++) {
+        Guest[] guests = new Guest[matchCount];
 
-            guests[i - 1] =
-                    queueSnapshot.getEntry(i);
+        int resultIndex = 0;
+        for (int i = 1; i <= queueSnapshot.size(); i++) {
+            Guest guest = queueSnapshot.getEntry(i);
+            if (matchesWaitingFilters(guest, guestKeyword, contactKeyword)) {
+                guests[resultIndex++] = guest;
+            }
         }
 
         // Selection sort by guest name
@@ -314,6 +354,26 @@ public class WalkInRegistrationController {
         }
 
         return guests;
+    }
+
+    public String[] getWaitingListReportRows(String guestKeyword, String contactKeyword) {
+        Guest[] guests = getWaitingListReport(guestKeyword, contactKeyword);
+        String[] rows = new String[guests.length];
+        for (int i = 0; i < guests.length; i++) {
+            rows[i] = (i + 1) + ". " + guests[i].getName() + " (ID: "
+                    + guests[i].getGuestId() + ", Contact: " + guests[i].getContact() + ")";
+        }
+        return rows;
+    }
+
+    private boolean matchesWaitingFilters(Guest guest, String guestKeyword,
+            String contactKeyword) {
+        boolean correctGuest = guestKeyword == null || guestKeyword.isEmpty()
+                || guest.getName().toLowerCase().contains(guestKeyword.toLowerCase())
+                || guest.getGuestId().equalsIgnoreCase(guestKeyword);
+        boolean correctContact = contactKeyword == null || contactKeyword.isEmpty()
+                || guest.getContact().contains(contactKeyword);
+        return correctGuest && correctContact;
     }
 
     /**
@@ -390,11 +450,10 @@ public class WalkInRegistrationController {
      */
     private void saveQueueToFile() {
 
-        Iterator<Guest> iterator =
+        QueueIterator<Guest> iterator =
                 waitingQueue.getIterator();
 
-        java.util.List<String> lines =
-                new java.util.ArrayList<>();
+        ListInterface<String> lines = new ADT.ArrayList<>();
 
         while (iterator.hasNext()) {
 
@@ -402,9 +461,8 @@ public class WalkInRegistrationController {
             lines.add(guest.getGuestId());
         }
 
-        FileUtility.writeAllLines(
-                QUEUE_DATA_FILE,
-                lines.toArray(new String[0])
-        );
+        String[] output = new String[lines.size()];
+        for (int i = 1; i <= lines.size(); i++) output[i - 1] = lines.getEntry(i);
+        FileUtility.writeAllLines(QUEUE_DATA_FILE, output);
     }
 }

@@ -1,7 +1,5 @@
 package ADT;
 
-import java.util.Iterator;
-
 /**
  * ArrayQueue.java A class that implements the ADT queue using a
  * linear array with a fixed front.
@@ -71,11 +69,11 @@ public class ArrayQueue<T> implements QueueInterface<T> {
     return backIndex == array.length - 1;
   }
   
-  public Iterator<T> getIterator() {
+  public QueueIterator<T> getIterator() {
     return new ArrayQueueIterator();
   }
   
-  private class ArrayQueueIterator implements Iterator<T> {
+  private class ArrayQueueIterator implements QueueIterator<T> {
     private int nextIndex;
 
     private ArrayQueueIterator() {
