@@ -5,13 +5,20 @@
 package Boundery;
 
 import java.util.Scanner;
+import Control.BookingController;
+import Control.GuestController;
+import Control.RoomController;
 
 public class MainMenuUI {
 
     private final Scanner scanner;
+    private final BookingController bookingController;
 
     public MainMenuUI() {
         scanner = new Scanner(System.in);
+        GuestController guestController = new GuestController();
+        RoomController roomController = new RoomController();
+        bookingController = new BookingController(guestController, roomController);
     }
 
     public void run() {
@@ -79,7 +86,7 @@ public class MainMenuUI {
                 "                        (_/     `-._)  /                                     \n" +
                 "------------------------------------------------------------------------------\n" +
                 "                         1. Booking & Registration                            \n" +
-                "                         2. Front Desk                                        \n" +
+                "                         2. Front Desk Service                                \n" +
                 "                         3. VIP Room Allocation                               \n" +
                 "                         4. Loyalty Management                                \n" +
                 "                         5. Housekeeping                                      \n" +
@@ -96,7 +103,7 @@ public class MainMenuUI {
     }
 
     private void openFrontDeskMenu() {
-        FrontDeskUI frontDeskUI = new FrontDeskUI(scanner);
+        FrontDeskUI frontDeskUI = new FrontDeskUI(bookingController, scanner);
         frontDeskUI.run();
     }
 
