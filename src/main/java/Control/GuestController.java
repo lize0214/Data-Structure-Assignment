@@ -26,6 +26,43 @@ public class GuestController extends AbstractEntityController<Guest, String> {
         return item.getGuestId();
     }
 
+    /** Returns the next available system-generated guest ID (for example G009). */
+    public String generateNextGuestId() {
+        int highestNumber = 0;
+
+        for (int i = 1; i <= list.size(); i++) {
+            String guestId = list.getEntry(i).getGuestId();
+            if (guestId != null && guestId.matches("G\\d+")) {
+                try {
+                    int number = Integer.parseInt(guestId.substring(1));
+                    if (number > highestNumber) {
+                        highestNumber = number;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Ignore an unusually large legacy ID and continue scanning.
+                }
+            }
+        }
+
+        int nextNumber = highestNumber + 1;
+        String candidate;
+        do {
+            candidate = String.format("G%03d", nextNumber++);
+        } while (findByKey(candidate) != null);
+
+        return candidate;
+    }
+
+    public ControllerResult addGeneratedGuest(String guestId, String name, String contact) {
+        ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
+        acc.check(ValidationUtility.validateRequired(guestId, "Guest ID"));
+        acc.check(ValidationUtility.validateRequired(name, "Name"));
+        acc.check(ValidationUtility.validateRequired(contact, "Contact"));
+        if (acc.hasErrors()) return ControllerResult.fail(acc.getErrorMessage());
+
+        return add(new Guest(guestId, name.trim(), contact.trim()));
+    }
+
     public ControllerResult update(String guestId, String name, String contact) {
         ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
         acc.check(ValidationUtility.validateRequired(name, "Name"));

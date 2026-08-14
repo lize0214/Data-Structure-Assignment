@@ -8,18 +8,17 @@ import Control.WalkInRegistrationController;
 import Control.GuestController;
 import Control.RoomController;
 import Control.BookingController;
-import Entity.Guest;
-import ADT.ListInterface;
 import Utility.ControllerResult;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 
-// Author: [Your Name]
+// Author: Ben Chin
 public class WalkInRegistrationUI {
 
     private final WalkInRegistrationController controller;
+    private final GuestController guestController;
     private final Scanner scanner;
 
     /**
@@ -31,6 +30,7 @@ public class WalkInRegistrationUI {
             RoomController roomController,
             BookingController bookingController) {
 
+        this.guestController = guestController;
         this.controller =
                 new WalkInRegistrationController(
                         guestController,
@@ -39,6 +39,125 @@ public class WalkInRegistrationUI {
                 );
 
         this.scanner = new Scanner(System.in);
+    }
+
+    // ───────────────────── Banner (Diet Cola font, patorjk.com/software/taag) ─────────────────────
+    static final String[] BANNER_MAIN = {
+        "                  /\\         .-.     .-.           .----.     .-.     ",
+        "..-.     .-.  _  / |        / (_)   (_) )  .'-       /   `      /  |  ",
+        "   )   (     (  /  |  .    /           /  /         /          /\\  |  ",
+        "  /     \\     `/.__|_.'   /          _/_.'`-=-.    /          /  \\ |  ",
+        " (   .   ).:' /    |   .-/.    .-..  /   \\        /      .-' /    \\|  ",
+        "  `-' `-'(__.'     `-'(_/ `-._.  (_.'     `-'.---------'(__.'      `. ",
+        "   .-.                .-       .-. .----.        .-..--------'.-.        ",
+        "  (_) )-.     .---;`-'  .--.`-'      /   ` .--.-'  (_)   /   (_) )-.     ",
+        "     /   \\   (   (_)   /  (_;       /     (  (_)        /       /   \\    ",
+        "    /     )   )--     /            /       `-.         /       /     )   ",
+        " .-/  `--'   (      /(     --;-   /      _    )     .-/._   .-/  `--'    ",
+        "(_/     `-._)`\\___.'  `.___.'.---------'(_.--'     (_/  `- (_/     `-._) ",
+        "         /\\   .--------'  .----.         .-.     ",
+        "     _  / |  (_)   /        /   `.--.    .-/  |  ",
+        "    (  /  |  .    /        /    /    )`-' /\\  |  ",
+        "     `/.__|_.'   /        /    /    /    /  \\ |  ",
+        " .:' /    |   .-/._      /    (    /.-' /    \\|  ",
+        "(__.'     `-'(_/  `-.---------'`-.'(__.'      `. "
+    };
+
+    private static final String[] BANNER_REGISTER = {
+        " .-.                .-       .-. .----.        .-..--------'     .- .-.       ",
+        "(_) )-.     .---;`-'  .--.`-'      /   ` .--.-'  (_)   / .---;`-' (_) )-.    ",
+        "   /   \\   (   (_)   /  (_;       /     (  (_)        / (   (_)      /   \\   ",
+        "  /     )   )--     /            /       `-.         /   )--         /     )  ",
+        "-/  `--'   (      /(     --;-   /      _    )     .-/._ (      / .-/  `--'   ",
+        "/     `-._)`\\___.'  `.___.'.---------'(_.--'     (_/  `-`\\___.' (_/     `-._)"
+    };
+
+    private static final String[] BANNER_PROCESS = {
+        "   .-.      .-.                     .-._   .-._.    .-     .-.   .-. ",
+        "  (_) )-.  (_) )-.      .--.    .-..' (_)`-'.---;`-' .--.-'.--.-'    ",
+        "     /   \\    /   \\    /    )`-'  |        (   (_)  (  (_)(  (_)     ",
+        "    /     )  /     )  /    /      |    _    )--      `-.   `-.       ",
+        " .-/  `--'.-/  `--'  (    /       `.    )  (      /_    )_    )      ",
+        "(_/      (_/     `-._)`-.'          `--'   `\\___.'(_.--'(_.--'       "
+    };
+
+    private static final String[] BANNER_VIEW_QUEUE = {
+        "          .----.         .-          ",
+        "..-.     .-./   `.---;`-'..-.     .-.",
+        "   )   /   /    (   (_)     )   (    ",
+        "  /   /   /      )--       /     \\   ",
+        " (  .'   /      (      /  (   .   )  ",
+        "  \\/.---------' `\\___.'    `-' `-'   ",
+        "   .`-,                   .-               .- ",
+        "  /    ) _     .-..---;`-'_     .-..---;`-'   ",
+        " /    / '     (  (   (_) '     (  (   (_)     ",
+        "(    /   /     )  )--     /     )  )--        ",
+        " `--`-. (     /  (      /(     /  (      /    ",
+        "       '-`._.'   `\\___.'  `._.'   `\\___.'     "
+    };
+
+    private static final String[] BANNER_CANCEL = {
+        "  .-._   .-._. /\\        .-.     .-._   .-._.    .-   .-.   ",
+        "..' (_)`-' _  / |          /  |..' (_)`-'.---;`-'    / (_)  ",
+        "|         (  /  |  .      /\\  ||        (   (_)     /       ",
+        "|    _     `/.__|_.'     /  \\ ||    _    )--       /        ",
+        "`.    ).:' /    |   .-' /    \\|`.    )  (      /.-/.    .-. ",
+        "  `--'(__.'     `-'(__.'      `. `--'   `\\___.'(_/ `-._.    "
+    };
+
+    private void printBanner(String[] banner) {
+        if (banner == null || banner.length == 0) {
+            return;
+        }
+        System.out.println();
+        for (String line : banner) {
+            System.out.println(line);
+        }
+    }
+
+    /**
+     * "Clears" the console. NetBeans' Output panel has no real clear API,
+     * so this pushes enough blank lines through that old content scrolls
+     * out of view - same approach used across the rest of the system for
+     * a consistent look.
+     */
+    private void clearScreen() {
+        for (int i = 0; i < 60; i++) {
+            System.out.println();
+        }
+    }
+
+    /**
+     * "Loading" animation that adapts to where it's running - a real
+     * terminal gets a spinner, NetBeans' Output panel (which can't
+     * overwrite lines) gets appended dots instead. Runs for ~3 seconds.
+     */
+    private void showLoading(String message) {
+        if (System.console() != null) {
+            String[] frames = {"|", "/", "-", "\\"};
+            try {
+                for (int cycle = 0; cycle < 6; cycle++) {
+                    for (String frame : frames) {
+                        System.out.print("\r" + message + " " + frame);
+                        Thread.sleep(125);
+                    }
+                }
+                System.out.print("\r" + " ".repeat(message.length() + 2) + "\r");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } else {
+            System.out.print(message);
+            try {
+                for (int i = 0; i < 6; i++) {
+                    Thread.sleep(500);
+                    System.out.print(".");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            System.out.println();
+        }
     }
 
     // ───────────────────── Main Menu ─────────────────────
@@ -84,10 +203,13 @@ public class WalkInRegistrationUI {
 
     private void printMenu() {
 
+        clearScreen();
+        printBanner(BANNER_MAIN);
+
         System.out.print(
                 "\n"
                 + "------------------------------------------------------------------------------\n"
-                + "                     WALK-IN REGISTRATION & STANDARD BOOKING                  \n"
+                + "                              WALK-IN REGISTRATION                            \n"
                 + "------------------------------------------------------------------------------\n"
                 + "                   1. Register Walk-In Guest                                  \n"
                 + "                   2. Process Next Guest in Queue                              \n"
@@ -103,6 +225,9 @@ public class WalkInRegistrationUI {
 
     private void handleRegisterWalkIn() {
 
+        clearScreen();
+        printBanner(BANNER_REGISTER);
+
         System.out.print(
                 "\n"
                 + "------------------------------------------------------------------------------\n"
@@ -110,13 +235,13 @@ public class WalkInRegistrationUI {
                 + "------------------------------------------------------------------------------\n"
         );
 
-        String guestId = readValidId("Guest ID                 : ");
+        String guestId = guestController.generateNextGuestId();
+        System.out.println("Generated Guest ID       : " + guestId);
         String name = readValidName("Guest Name                : ");
         String contact = readValidContact("Guest Contact             : ");
 
-        Guest guest = new Guest(guestId, name, contact);
-
-        ControllerResult result = controller.registerWalkIn(guest);
+        showLoading("Registering guest...");
+        ControllerResult result = controller.registerWalkIn(guestId, name, contact);
 
         printResult(result);
         pressEnterToContinue();
@@ -125,6 +250,9 @@ public class WalkInRegistrationUI {
     // ───────────────────── 2. Process Next Guest in Queue ─────────────────────
 
     private void handleProcessNextGuest() {
+
+        clearScreen();
+        printBanner(BANNER_PROCESS);
 
         System.out.print(
                 "\n"
@@ -139,18 +267,19 @@ public class WalkInRegistrationUI {
             return;
         }
 
-        Guest nextGuest = controller.peekNextGuest();
-        if (nextGuest == null) {
+        String nextGuestName = controller.getNextGuestName();
+        if (nextGuestName == null) {
             System.out.println("\nUnable to retrieve the next guest.");
             pressEnterToContinue();
             return;
         }
 
-        System.out.println("\nNext guest in queue: " + nextGuest.getName());
+        System.out.println("\nNext guest in queue: " + nextGuestName);
 
-        LocalDate checkInDate = readValidDate("Enter Check-In Date (yyyy-mm-dd)  : ");
+        LocalDate checkInDate = readValidCheckInDate("Enter Check-In Date (yyyy-mm-dd)  : ");
         LocalDate checkOutDate = readValidDate("Enter Check-Out Date (yyyy-mm-dd) : ");
 
+        showLoading("Processing guest...");
         ControllerResult result =
                 controller.processNextGuest(checkInDate, checkOutDate);
 
@@ -162,6 +291,9 @@ public class WalkInRegistrationUI {
 
     private void handleViewQueue() {
 
+        clearScreen();
+        printBanner(BANNER_VIEW_QUEUE);
+
         System.out.print(
                 "\n"
                 + "------------------------------------------------------------------------------\n"
@@ -169,9 +301,9 @@ public class WalkInRegistrationUI {
                 + "------------------------------------------------------------------------------\n"
         );
 
-        ListInterface<Guest> queueSnapshot = controller.viewQueue();
+        String[] queueRows = controller.getQueueDisplayRows();
 
-        if (queueSnapshot.size() == 0) {
+        if (queueRows.length == 0) {
             System.out.println("\nWalk-in queue is currently empty.");
             pressEnterToContinue();
             return;
@@ -181,11 +313,7 @@ public class WalkInRegistrationUI {
         System.out.printf("%-5s %-25s %-10s %-15s%n", "No.", "Name", "ID", "Contact");
         System.out.println("--------------------------------------------------------------------------");
 
-        for (int i = 1; i <= queueSnapshot.size(); i++) {
-            Guest guest = queueSnapshot.getEntry(i);
-            System.out.printf("%-5d %-25s %-10s %-15s%n",
-                    i, guest.getName(), guest.getGuestId(), guest.getContact());
-        }
+        for (String row : queueRows) System.out.println(row);
 
         pressEnterToContinue();
     }
@@ -193,6 +321,9 @@ public class WalkInRegistrationUI {
     // ───────────────────── 4. Cancel Walk-In Registration ─────────────────────
 
     private void handleCancelWalkIn() {
+
+        clearScreen();
+        printBanner(BANNER_CANCEL);
 
         System.out.print(
                 "\n"
@@ -282,6 +413,14 @@ public class WalkInRegistrationUI {
             } catch (DateTimeParseException e) {
                 System.out.println("Invalid date format - please use yyyy-mm-dd.");
             }
+        }
+    }
+
+    private LocalDate readValidCheckInDate(String prompt) {
+        while (true) {
+            LocalDate checkInDate = readValidDate(prompt);
+            if (!checkInDate.isBefore(LocalDate.now())) return checkInDate;
+            System.out.println("Check-in date cannot be in the past.");
         }
     }
 
