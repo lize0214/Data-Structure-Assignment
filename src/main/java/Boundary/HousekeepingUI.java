@@ -2,14 +2,14 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package Boundery;
+package Boundary;
 
 /**
  *
  * @author USER
  */
-public class ReportUI {
+public class HousekeepingUI {
     public void run() {
-        System.out.println("Report Menu");
+        System.out.println("Housekeeping Menu");
     }
 }

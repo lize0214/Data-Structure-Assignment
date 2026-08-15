@@ -1,4 +1,8 @@
-package Boundery;
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package Boundary;
 
 import Control.BookingController;
 import Control.FrontDeskController;
@@ -42,18 +46,18 @@ public class FrontDeskUI {
 
     // Each submenu below gets its own Diet Cola banner (patorjk.com/software/taag).
     private static final String[] BANNER_SEARCH = {
-        "                       .-.                            ",
-        "                    .--.-'                            /   ",
-        "                   (  (_)  .-.  .-.    ).--..-.      /-.  ",
-        "                     `-. ./.-'_(  |   /    (        /   | ",
-        "                   _    )(__.'  `-'-'/      `---'_.'    | ",
-        "                  (_.--'                                  ",
-        "                .-.                                            ",
-        "               (_) )-.               /      .-.                ",
-        "                  / __)  .-._..-._. /-.     `-'.  .-.    .-.   ",
-        "                 /    `.(   )(   ) /   )   /    )/   )  (   )  ",
-        "                /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'",
-        "             (_/  `----'                             `--._/    "
+        "                              .-.                            ",
+        "                           .--.-'                            /   ",
+        "                          (  (_)  .-.  .-.    ).--..-.      /-.  ",
+        "                            `-. ./.-'_(  |   /    (        /   | ",
+        "                          _    )(__.'  `-'-'/      `---'_.'    | ",
+        "                         (_.--'                                  ",
+        "                       .-.                                            ",
+        "                      (_) )-.               /      .-.                ",
+        "                         / __)  .-._..-._. /-.     `-'.  .-.    .-.   ",
+        "                        /    `.(   )(   ) /   )   /    )/   )  (   )  ",
+        "                       /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'",
+        "                    (_/  `----'                             `--._/    "
     };
     
     private static final String[] BANNER_BOOKINGENQUIRY = {
@@ -71,19 +75,19 @@ public class FrontDeskUI {
         "              `\\___.'       `-   `-'               ..-._)       "
     };
 
-    private static final String[] BANNER_ASSIGNEDROOM = {
-        "                 /\\                                             .           ", 
-        "             _  / |                 .-.                        /             ", 
-        "            (  /  |  .  .    .      `-'.-.  .  .-.   .-.  .-../              ", 
-        "             `/.__|_.' / \\  / \\    /  (   )  )/   )./.-'_(   /             ", 
-        "         .:' /    |   / ._)/ ._)_.(__. `-/-''/   ( (__.'  `-'-..             ", 
-        "        (__.'     `-'/    /          -._/         `-                         ", 
-        "   .-.                                       .-.                             ",
-        "  (_) )-.                              .--.-'   /          /                 ",
-        "     /   \\  .-._..-._..  .-. .-.      (  (_)---/---.-. ---/---)  (   .      ",
-        "    /     )(   )(   )  )/   )   )      `-.    /   (  |   /   (    ) / \\     ",
-        " .-/  `--'  `-'  `-'  '/   /   (     _    )  /     `-'-'/     `--':/ ._)     ",
-        "(_/     `-._)                   `-' (_.--'                        /          "
+    private static final String[] BANNER_CHECKROOM = {
+        "                      .-._   .-._.                                                           \n" +
+        "                    ..' (_)`-'  /                  /                                         \n" +
+        "                    |          /-.   .-.  .-.     /-.                                        \n" +
+        "                    |    _    /   |./.-'_(       /   )                                       \n" +
+        "                    `.    )_.'    |(__.'  `---'_/    \\                                       \n" +
+        "                      `--'                                                                   \n" +
+        "      .-.                                       .-.                         \n" +
+        "     (_) )-.                              .--.-'   /          /             \n" +
+        "        /   \\  .-._..-._..  .-. .-.      (  (_)---/---.-. ---/---)  (   .   \n" +
+        "       /     )(   )(   )  )/   )   )      `-.    /   (  |   /   (    ) / \\  \n" +
+        "    .-/  `--'  `-'  `-'  '/   /   (     _    )  /     `-'-'/     `--':/ ._) \n" +
+        "   (_/     `-._)                   `-' (_.--'                        /      "
     };
 
     private static final String[] BANNER_BILLING = {
@@ -140,18 +144,18 @@ public class FrontDeskUI {
     };
 
     private static final String[] BANNER_BOOKINGS = {
-        "                                                     /\\      .    .    \n" +
-        "                ..-.     .-..-.                   _ / |     /    /     \n" +
-        "                   )   /   `-' .-. `)    (      (  /  |  . /    /      \n" +
-        "                  /   /   /  ./.-'_/  .   )      `/.__|_.'/    /       \n" +
-        "                 (  .' _.(__.(__.'(_.' `-'   .:' /    | _/_.-_/_.-     \n" +
-        "                  \\/                       (__.'     `-'              ",
-        "                 .-.                                                 ",
-        "                (_) )-.               /      .-.                     ",
-        "                   / __)  .-._..-._. /-.     `-'.  .-.    .-.    .   ",
-        "                  /    `.(   )(   ) /   )   /    )/   )  (   )  / \\  ",
-        "                 /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'/ ._) ",
-        "              (_/  `----'                             `--._/  /      "
+        "                                        .-.                                             \n" +
+        "        ..-.     .-..-.                (_) )-.               /      .-.                 \n" +
+        "            )   /   `-' .-. `)    (       / __)  .-._..-._. /-.     `-'.  .-.    .-.    \n" +
+        "           /   /   /  ./.-'_/  .   )     /    `.(   )(   ) /   )   /    )/   )  (   )   \n" +
+        "          (  .' _.(__.(__.'(_.' `-'     /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'  \n" +
+        "           \\/                        (_/  `----'                             `--._/     \n" +
+        "                              .-.                                                 \n" +
+        "                             / (_)     .-.       /                                \n" +
+        "                            /          `-' . ---/---                              \n" +
+        "                           /          /   / \\  /                                  \n" +
+        "                        .-/.    .-._.(__./ ._)/                                   \n" +
+        "                       (_/ `-._.        /                                         "
     };
 
     private void printBanner(String[] banner) {
@@ -254,8 +258,10 @@ public class FrontDeskUI {
 
                 default:
                     System.out.println(
-                            "\nInvalid option, please try again."
+                            "\nInvalid option. Please enter a number from 0 to 5."
                     );
+                    pressEnterToContinue();
+                    break;
             }
         }
     }
@@ -278,11 +284,26 @@ public class FrontDeskUI {
     private String readConfNo() {
         while (true) {
             System.out.print("Enter 8-digit confirmation number: ");
-            String input = scanner.nextLine().trim();
-            if (input.matches("\\d{8}")) {
-                return input;
+            String confNo = scanner.nextLine().trim();
+
+            if (!confNo.matches("\\d{8}")) {
+                System.out.println(
+                        "Invalid format. Confirmation number must be exactly 8 digits.\n"
+                );
+                continue;
             }
-            System.out.println("Invalid format - confirmation number must be exactly 8 digits.\n");
+
+            ControllerResult result =
+                    controller.searchByConfirmationNo(confNo);
+
+            if (!result.isOk()) {
+                System.out.println(
+                        "Booking not found. Please try again.\n"
+                );
+                continue;
+            }
+
+            return confNo;
         }
     }
 
@@ -306,8 +327,8 @@ public class FrontDeskUI {
             System.out.print(
                     "------------------------------------------------------------------------------\n" +
                     "                         1. Search Booking                                    \n" +
-                    "                         2. Check Assigned Room Status                       \n" +
-                    "                         3. View All Bookings                                \n" +
+                    "                         2. View Booking List                                 \n" +
+                    "                         3. Check Assigned Room Status                       \n" +
                     "                         0. Back                                             \n" +
                     "------------------------------------------------------------------------------\n" +
                     "Enter your choice: "
@@ -317,28 +338,30 @@ public class FrontDeskUI {
 
             switch (choice) {
 
-                case "1":
-                    runSearchMenu();
-                    break;
+            case "1":
+                runSearchMenu();
+                break;
 
-                case "2":
-                    handleAvailability();
-                    pressEnterToContinue();
-                    break;
+            case "2":
+                handleViewBookingList();
+                break;
 
-                case "3":
-                    handleViewAllBookings();
-                    break;
+            case "3":
+                handleAvailability();
+                pressEnterToContinue();
+                break;
 
-                case "0":
-                    running = false;
-                    break;
+            case "0":
+                running = false;
+                break;
 
-                default:
-                    System.out.println(
-                            "\nInvalid option, please try again."
-                    );
-            }
+            default:
+                System.out.println(
+                        "\nInvalid option. Please enter a number from 0 to 3."
+                );
+                pressEnterToContinue();
+                break;
+        }
         }
     }
     
@@ -350,11 +373,11 @@ public class FrontDeskUI {
             printBanner(BANNER_SEARCH);
 
             System.out.print(
-                    "------------------------------------------------------------------------------\n" +
-                    "                         1. By Confirmation Number                            \n" +
-                    "                         2. By Guest Name                                     \n" +
-                    "                         0. Back                                              \n" +
-                    "------------------------------------------------------------------------------\n" +
+                    "----------------------------------------------------------------------------------------------\n" +
+                    "                                1. By Confirmation Number                            \n" +
+                    "                                2. By Guest Name                                     \n" +
+                    "                                0. Back                                              \n" +
+                    "----------------------------------------------------------------------------------------------\n" +
                     "Enter your choice: "
             );
 
@@ -389,16 +412,17 @@ public class FrontDeskUI {
 
                 default:
                     System.out.println(
-                            "Invalid option, please try again."
+                            "\nInvalid option. Please enter a number from 0 to 2."
                     );
-                    continue;
+                    pressEnterToContinue();
+                    break;
             }
         }
     }
 
     private void handleAvailability() {
         clearScreen();
-        printBanner(BANNER_ASSIGNEDROOM);
+        printBanner(BANNER_CHECKROOM);
         System.out.println("------------------------------------------------------------------------------");
         String confNo = readConfNo();
         ControllerResult result = controller.checkAssignedRoomStatus(confNo);
@@ -415,6 +439,7 @@ public class FrontDeskUI {
     }
 
     private void handleCheckOut() {
+
         clearScreen();
         printBanner(BANNER_CHECKOUT);
 
@@ -433,40 +458,136 @@ public class FrontDeskUI {
             return;
         }
 
-        System.out.println("\n" + billing.getMessage());
-
         // Check whether already checked out
         if (controller.isBookingCheckedOut(confNo)) {
+
             System.out.println(
                 "\nThis booking has already been checked out."
             );
+
             return;
         }
 
-        // Check whether payment already exists
+        // Only CheckedIn guests can proceed with checkout
+        if (!controller.isBookingCheckedIn(confNo)) {
+
+            System.out.println(
+                "\nOnly guests with CheckedIn status can be checked out."
+            );
+
+            return;
+        }
+
+        // ───────────────── Check Checkout Date ─────────────────
+
+        LocalDate today =
+                LocalDate.now();
+
+        LocalDate scheduledCheckOut =
+                controller.getScheduledCheckOutDate(confNo);
+
+        String timing =
+                controller.getCheckOutTiming(confNo);
+
+        System.out.println();
+
+        System.out.println(
+                "Scheduled Check-Out : " + scheduledCheckOut
+        );
+
+        System.out.println(
+                "Current Date        : " + today
+        );
+
+        // Early checkout
+        if ("EARLY".equals(timing)) {
+
+            System.out.println(
+                "\nThis is an early check-out."
+            );
+
+            if (!confirmAction(
+                    "Proceed with early check-out?"
+            )) {
+
+                System.out.println(
+                    "\nCheck-out cancelled."
+                );
+
+                return;
+            }
+
+        // Late checkout
+        } else if ("LATE".equals(timing)) {
+
+            long overdueDays =
+                    java.time.temporal.ChronoUnit.DAYS.between(
+                            scheduledCheckOut,
+                            today
+                    );
+
+            System.out.println(
+                "\nGuest is "
+                + overdueDays
+                + " day(s) past the scheduled check-out date."
+            );
+
+            if (!confirmAction(
+                    "Proceed with late check-out?"
+            )) {
+
+                System.out.println(
+                    "\nCheck-out cancelled."
+                );
+
+                return;
+            }
+
+        // Normal checkout
+        } else {
+
+            System.out.println(
+                "\nCheck-out date confirmed."
+            );
+        }
+
+        // Show billing after checkout-date validation
+        System.out.println(
+                billing.getMessage()
+        );
+
+        // ───────────────── Payment ─────────────────
+
         if (!paymentController.isPaid(confNo)) {
 
             System.out.println(
                 "\n------------------------------------------------------------------------------"
             );
+
             System.out.println(
                 "                              PAYMENT METHOD"
             );
+
             System.out.println(
                 "------------------------------------------------------------------------------"
             );
+
             System.out.println(
                 "                         1. Cash"
             );
+
             System.out.println(
                 "                         2. Card"
             );
+
             System.out.println(
                 "                         3. E-wallet"
             );
+
             System.out.println(
                 "                         0. Cancel"
             );
+
             System.out.println(
                 "------------------------------------------------------------------------------"
             );
@@ -475,7 +596,8 @@ public class FrontDeskUI {
                 "Select payment method: "
             );
 
-            String choice = scanner.nextLine().trim();
+            String choice =
+                    scanner.nextLine().trim();
 
             String method;
 
@@ -505,7 +627,7 @@ public class FrontDeskUI {
                     );
                     return;
             }
-            
+
             System.out.println();
 
             System.out.println(
@@ -550,7 +672,7 @@ public class FrontDeskUI {
             System.out.println(
                 "\nPayment has already been completed."
             );
-            
+
             System.out.println();
 
             if (!confirmAction(
@@ -565,7 +687,8 @@ public class FrontDeskUI {
             }
         }
 
-        // Complete checkout
+        // ───────────────── Complete Checkout ─────────────────
+
         ControllerResult checkoutResult =
                 controller.updateBookingStatus(
                     confNo,
@@ -591,9 +714,11 @@ public class FrontDeskUI {
                     );
 
             if (!roomResult.isOk()) {
+
                 System.out.println(
                     "\nWarning: Room status could not be updated."
                 );
+
                 System.out.println(
                     roomResult.getMessage()
                 );
@@ -602,24 +727,32 @@ public class FrontDeskUI {
 
         controller.refreshIndex();
 
+        // ───────────────── Success Output ─────────────────
+
         System.out.println();
+
         System.out.println(
             "------------------------------------------------------------------------------"
         );
+
         System.out.println(
             "                           CHECK-OUT SUCCESSFUL"
         );
+
         System.out.println(
             "------------------------------------------------------------------------------"
         );
+
         System.out.println(
             "Confirmation No. : " + confNo
         );
 
         if (roomNo != null) {
+
             System.out.println(
                 "Room No.         : " + roomNo
             );
+
             System.out.println(
                 "Room Status      : Dirty"
             );
@@ -628,6 +761,7 @@ public class FrontDeskUI {
         System.out.println(
             "Booking Status   : CheckedOut"
         );
+
         System.out.println(
             "------------------------------------------------------------------------------"
         );
@@ -686,7 +820,7 @@ public class FrontDeskUI {
         );
     }
 
-    private void handleViewAllBookings() {
+    private void handleViewBookingList() {
         boolean running = true;
 
         while (running) {
@@ -734,9 +868,10 @@ public class FrontDeskUI {
 
                 default:
                     System.out.println(
-                            "\nInvalid option, please try again."
+                            "\nInvalid option. Please enter a number from 0 to 3."
                     );
-                    continue;
+                    pressEnterToContinue();
+                    break;
             }
         }
     }
@@ -802,47 +937,12 @@ public class FrontDeskUI {
 
                 default:
                     System.out.println(
-                            "\nInvalid option, please try again."
+                            "\nInvalid option. Please enter a number from 0 to 2."
                     );
-                    continue;
+                    pressEnterToContinue();
+                    break;
             }
         }
-    }
-    
-    private void handleRoomStatusReport() {
-
-        System.out.println(
-                "------------------------------------------------------------------------------"
-        );
-        System.out.println(
-                "                              ROOM STATUS REPORT"
-        );
-        System.out.println(
-                "------------------------------------------------------------------------------"
-        );
-
-        System.out.println(
-                "Available | Occupied | Dirty | CleaningInProgress | Inspected | "
-        );
-        System.out.println(
-                "ReadyForCheckIn | Maintenance"
-        );
-
-        System.out.println(
-                "------------------------------------------------------------------------------"
-        );
-
-        System.out.print(
-                "Filter by room status (leave blank for all): "
-        );
-
-        String statusFilter =
-                scanner.nextLine().trim();
-
-        ControllerResult result =
-                controller.roomStatusReport(statusFilter);
-
-        printResult(result);
     }
 
     // ───────────────────── Reports Submenu ─────────────────────
@@ -854,10 +954,10 @@ public class FrontDeskUI {
             printBanner(BANNER_REPORTS);
             System.out.print(
                     "------------------------------------------------------------------------------\n" +
-                    "                   1. Operational Report                                      \n" +
-                    "                   2. Revenue Report                                           \n" +
-                    "                   3. Outstanding Payments Report                              \n" +
-                    "                   4. Room Status Report                                       \n" +
+                    "                   1. Revenue Report                                           \n" +
+                    "                   2. Outstanding Payments Report                              \n" +
+                    "                   3. Room Status Report                                       \n" +
+                    "                   4. Operational Report                                      \n" +
                     "                   0. Back                                                     \n" +
                     "------------------------------------------------------------------------------\n" +
                     "Enter your choice: "
@@ -866,40 +966,108 @@ public class FrontDeskUI {
 
             switch (choice) {
                 case "1":
-                    printResult(controller.quickStats());
-                    pressEnterToContinue();
-                    break;
-                case "2":
                     handleRevenueReport();
                     pressEnterToContinue();
                     break;
+                case "2":
+                    handleOutstandingPaymentsReport();
+                    pressEnterToContinue();
+                    break;
                 case "3":
-                    printResult(controller.outstandingPaymentsReport());
+                    handleRoomStatusReport();
                     pressEnterToContinue();
                     break;
                 case "4":
-                    handleRoomStatusReport();
+                    printResult(controller.quickStats());
                     pressEnterToContinue();
                     break;
                 case "0":
                     inReports = false;
                     break;
                 default:
-                    System.out.println("Invalid option, please try again.\n");
-                    continue;
+                    System.out.println(
+                            "\nInvalid option. Please enter a number from 0 to 4."
+                    );
+                    pressEnterToContinue();
+                    break;
             }
         }
     }
 
     private void handleRevenueReport() {
+
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.println("                              REVENUE REPORT");
+        System.out.println("------------------------------------------------------------------------------");
+     
+        LocalDate start =
+                readOptionalDate(
+                        "Filter check-out date FROM (YYYY-MM-DD, blank to skip): "
+                );
+
+        LocalDate end =
+                readOptionalDate(
+                        "Filter check-out date TO   (YYYY-MM-DD, blank to skip): "
+                );
+
+        System.out.println();
+
+        ControllerResult result =
+            controller.revenueReport(start, end);
+
+        printResult(result);
+    }
+    
+    private void handleOutstandingPaymentsReport() {
+
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.println("                     OUTSTANDING PAYMENTS REPORT");
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.println("Booking Status Options:");
+        System.out.println("Confirmed | CheckedIn | CheckedOut | Cancelled");
         System.out.println("------------------------------------------------------------------------------");
         System.out.print("Filter by booking status (leave blank for all): ");
+
         String status = scanner.nextLine().trim();
 
-        LocalDate start = readOptionalDate("Filter check-out date FROM (YYYY-MM-DD, blank to skip): ");
-        LocalDate end = readOptionalDate("Filter check-out date TO   (YYYY-MM-DD, blank to skip): ");
+        LocalDate start =
+                readOptionalDate(
+                        "Filter check-out date FROM (YYYY-MM-DD, blank to skip): "
+                );
 
-        ControllerResult result = controller.revenueReport(status.isBlank() ? null : status, start, end);
+        LocalDate end =
+                readOptionalDate(
+                        "Filter check-out date TO   (YYYY-MM-DD, blank to skip): "
+                );
+
+        System.out.println();
+
+        ControllerResult result =
+                controller.outstandingPaymentsReport(
+                        status.isBlank()
+                                ? null
+                                : status,
+                        start,
+                        end
+                );
+
+        printResult(result);
+    }
+        
+        private void handleRoomStatusReport() {
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.println("                            ROOM STATUS REPORT");
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.println("Room Status Options:");
+        System.out.println("Available | Occupied | Dirty | CleaningInProgress | Inspected | ");
+        System.out.println("ReadyForCheckIn | Maintenance");
+        System.out.println("------------------------------------------------------------------------------");
+        System.out.print("Filter by room status (leave blank for all): ");
+
+        String statusFilter = scanner.nextLine().trim();
+        System.out.println();
+        ControllerResult result = controller.roomStatusReport(statusFilter);
+
         printResult(result);
     }
 
