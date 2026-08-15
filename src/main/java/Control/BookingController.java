@@ -9,8 +9,14 @@ import Utility.ControllerResult;
 import Utility.ValidationUtility;
 
 import java.time.LocalDate;
-// Author: Ben Chin
+import java.security.SecureRandom;
+/**
+ * @author Chin Yik Heng
+ */
 public class BookingController extends AbstractEntityController<Booking, String> {
+    private static final SecureRandom CONFIRMATION_RANDOM = new SecureRandom();
+    private static final int CONFIRMATION_NUMBER_LIMIT = 100_000_000;
+
     private final GuestController guestController;
     private final RoomController roomController;
 
@@ -24,7 +30,7 @@ public class BookingController extends AbstractEntityController<Booking, String>
     @Override
     protected Booking parseCsvLine(String line) {
         String[] parts = line.split(",");
-        if (parts.length != 7) {
+        if (parts.length != 6 && parts.length != 7) {
             throw new IllegalArgumentException("Invalid Booking data format: " + line);
         }
         String guestId = parts[1].trim();
@@ -213,6 +219,37 @@ public class BookingController extends AbstractEntityController<Booking, String>
         return roomController.findByKey(roomNo) != null;
     }
 
+    /** Returns rooms whose current status is Available. */
+    public String[] getAvailableRoomRows() {
+        ListInterface<Room> rooms = roomController.getAll();
+        int count = 0;
+        for (int i = 1; i <= rooms.size(); i++) {
+            Room room = rooms.getEntry(i);
+            if ("Available".equalsIgnoreCase(room.getStatus())) {
+                count++;
+            }
+        }
+
+        String[] rows = new String[count];
+        int outputIndex = 0;
+        for (int i = 1; i <= rooms.size(); i++) {
+            Room room = rooms.getEntry(i);
+            if ("Available".equalsIgnoreCase(room.getStatus())) {
+                rows[outputIndex++] = String.format("%-10s %-12s %-18s",
+                        room.getRoomNo(), room.getRoomType(), room.getStatus());
+            }
+        }
+        return rows;
+    }
+
+    /** Validates dates for a room before the UI attempts to create a booking. */
+    public String validateStandardBookingDates(String roomNo, LocalDate checkIn,
+            LocalDate checkOut) {
+        Room room = roomController.findByKey(roomNo);
+        if (room == null) return "Room not found.";
+        return validateRoomBookingDates(room, checkIn, checkOut, null);
+    }
+
     public ControllerResult cancelStandardBooking(String confirmationNo) {
         if (!isValidStandardConfirmationNo(confirmationNo)) {
             return ControllerResult.fail("Confirmation number must contain exactly 8 digits.");
@@ -231,6 +268,11 @@ public class BookingController extends AbstractEntityController<Booking, String>
     private String validateStandardBooking(Guest guest, Room room, LocalDate checkIn,
             LocalDate checkOut, String excludedConfirmationNo) {
         if (guest == null) return "Guest is required.";
+        return validateRoomBookingDates(room, checkIn, checkOut, excludedConfirmationNo);
+    }
+
+    private String validateRoomBookingDates(Room room, LocalDate checkIn,
+            LocalDate checkOut, String excludedConfirmationNo) {
         if (room == null) return "Room is required.";
         String dateError = ValidationUtility.validateDateRange(checkIn, checkOut);
         if (dateError != null) return dateError;
@@ -241,6 +283,15 @@ public class BookingController extends AbstractEntityController<Booking, String>
             return "Room " + room.getRoomNo() + " is not ready for check-in today (status: "
                     + room.getStatus() + ").";
         }
+        if (hasRoomConflict(room.getRoomNo(), checkIn, checkOut, excludedConfirmationNo)) {
+            return "Room " + room.getRoomNo() + " is booked during that date range.";
+        }
+        return null;
+    }
+
+    /** Returns whether an active booking overlaps the requested room/date range. */
+    public boolean hasRoomConflict(String roomNo, LocalDate checkIn,
+            LocalDate checkOut, String excludedConfirmationNo) {
         for (int i = 1; i <= list.size(); i++) {
             Booking booking = list.getEntry(i);
             // A legacy file record may reference a guest/room that was removed.
@@ -248,14 +299,14 @@ public class BookingController extends AbstractEntityController<Booking, String>
             if (booking.getGuest() == null || booking.getRoom() == null) continue;
             if (excludedConfirmationNo != null
                     && excludedConfirmationNo.equals(booking.getConfirmationNo())) continue;
-            if (!room.getRoomNo().equals(booking.getRoom().getRoomNo())) continue;
+            if (!roomNo.equals(booking.getRoom().getRoomNo())) continue;
             if ("Cancelled".equalsIgnoreCase(booking.getBookingStatus())
                     || "CheckedOut".equalsIgnoreCase(booking.getBookingStatus())) continue;
             if (checkIn.isBefore(booking.getCheckOutDate())
                     && checkOut.isAfter(booking.getCheckInDate()))
-                return "Room " + room.getRoomNo() + " is booked during that date range.";
+                return true;
         }
-        return null;
+        return false;
     }
 
     public boolean isValidStandardConfirmationNo(String confirmationNo) {
@@ -287,16 +338,17 @@ public class BookingController extends AbstractEntityController<Booking, String>
     }
 
     public String nextNumericConfirmationNo() {
-        int number = 1;
         String value;
-        do value = String.format("%08d", number++);
-        while (findByKey(value) != null);
+        do {
+            int randomNumber = CONFIRMATION_RANDOM.nextInt(CONFIRMATION_NUMBER_LIMIT);
+            value = String.format("%08d", randomNumber);
+        } while (findByKey(value) != null);
         return value;
     }
 
     /**
      * Generates the Registration Report: all bookings that originated from a
-     * Walk-In Registration (confirmation numbers prefixed "WI"), sorted by
+     * Walk-In Registration (identified by BookingType.WALK_IN), sorted by
      * confirmation number using a manual selection sort (no Java Collections
      * Framework). This is a historical log of processed walk-ins, distinct
      * from the Waiting List Report, which shows guests not yet processed.
