@@ -172,7 +172,7 @@ public class VIPAllocationController {
         String confirmationNo = generateConfirmationNo();
         LocalDate today = LocalDate.now();
         Booking booking = new Booking(confirmationNo, guest, availableRoom,
-                today, today.plusDays(1), "CheckedIn", BookingType.VIP);
+                today, today.plusDays(1), "CheckedIn", BookingType.STANDARD);
         ControllerResult bookingResult = bookingController.add(booking);
         if (!bookingResult.isOk()) {
             // Rollback room status

@@ -28,21 +28,7 @@ public class Main {
 
         clearScreen();
 
-        RoomController roomController = new RoomController();
-        Room room = new Room("205", "Deluxe", 260.00, "Dirty");
-        ControllerResult result = roomController.add(room);
-        if (result.isOk()) {
-            System.out.println("Room added: " + result.getMessage());
-        } else {
-            System.out.println("Error adding room: " + result.getMessage());
-        }
         MainMenuUI mainMenuUI = new MainMenuUI();
         mainMenuUI.run();
-        System.out.println(result);
-        
-        // abc123
-        System.out.println(result); 
-        //hiiiii
-        //bye
     }
 }

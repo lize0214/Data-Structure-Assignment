@@ -2,7 +2,9 @@ package Entity;
 
 import java.time.LocalDate;
 
-// Author: [你的名字]
+/**
+ * @author Chin Yik Heng
+ */
 public class Booking {
     private String confirmationNo;
     private Guest guest;
@@ -72,12 +74,15 @@ public class Booking {
     // Note: Only guestId and roomNo can be obtained here; a complete Booking object cannot be created directly.
     // The corresponding Guest and Room objects must first be retrieved in the Controller layer,
     // and then the Booking object can be constructed manually.
-    // Format: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus
+    // Format: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus[,bookingType]
     public static Booking fromCsvLine(String line, Guest guest, Room room) {
         String[] parts = line.split(",");
-        if (parts.length != 7) {
+        if (parts.length != 6 && parts.length != 7) {
             throw new IllegalArgumentException("Invalid Booking data format: " + line);
         }
+        BookingType type = parts.length == 7
+                ? BookingType.valueOf(parts[6].trim().toUpperCase())
+                : BookingType.STANDARD;
         Booking booking = new Booking(
                 parts[0].trim(),
                 guest,
@@ -85,7 +90,7 @@ public class Booking {
                 LocalDate.parse(parts[3].trim()),
                 LocalDate.parse(parts[4].trim()),
                 parts[5].trim(),
-                BookingType.valueOf(parts[6].trim().toUpperCase())
+                type
         );
         // Preserve the IDs from the booking file even if lookup returned null.
         booking.guestId = parts[1].trim();

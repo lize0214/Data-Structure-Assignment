@@ -4,10 +4,7 @@ package ADT;
  * Implements {@link QueueInterface} using a circular array with one unused
  * location to distinguish a full queue from an empty queue.
  *
- * <p>This implementation is adapted from the circular-array Queue ADT by
- * Frank M. Carrano. Ben Chin adapted it for the TARUMT Resorts walk-in
- * registration module by adding a project-owned iterator and the
- * {@link #size()} operation.</p>
+ 
  *
  * <p>A circular array is appropriate for walk-in registration because it
  * preserves FIFO processing while reusing array positions freed by dequeue.
@@ -25,8 +22,7 @@ package ADT;
  *
  * @param <T> the type of entry stored in the queue
  * @author Frank M. Carrano (original implementation)
- * @author Ben Chin (assignment adaptation)
- * @version 2.1
+ * @author Chin Yik Heng (assignment adaptation)
  */
 public class CircularArrayQueue<T> implements QueueInterface<T> {
 
