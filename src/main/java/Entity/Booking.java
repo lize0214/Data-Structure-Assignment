@@ -14,12 +14,20 @@ public class Booking {
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
     private String bookingStatus;
+    private BookingType bookingType;
 
     public Booking() {
     }
 
     public Booking(String confirmationNo, Guest guest, Room room,
                    LocalDate checkInDate, LocalDate checkOutDate, String bookingStatus) {
+        this(confirmationNo, guest, room, checkInDate, checkOutDate,
+                bookingStatus, BookingType.STANDARD);
+    }
+
+    public Booking(String confirmationNo, Guest guest, Room room,
+                   LocalDate checkInDate, LocalDate checkOutDate, String bookingStatus,
+                   BookingType bookingType) {
         this.confirmationNo = confirmationNo;
         this.guest = guest;
         this.room = room;
@@ -28,6 +36,7 @@ public class Booking {
         this.checkInDate = checkInDate;
         this.checkOutDate = checkOutDate;
         this.bookingStatus = bookingStatus;
+        this.bookingType = bookingType;
     }
 
     public String getConfirmationNo() { return confirmationNo; }
@@ -57,12 +66,16 @@ public class Booking {
     public String getBookingStatus() { return bookingStatus; }
     public void setBookingStatus(String bookingStatus) { this.bookingStatus = bookingStatus; }
 
-    // 注意：这里只能拿到guestId和roomNo，不能直接生成完整Booking对象
-    // 需要在Controller层查到对应的Guest和Room对象后，再手动组装
-    // 格式: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus
+    public BookingType getBookingType() { return bookingType; }
+    public void setBookingType(BookingType bookingType) { this.bookingType = bookingType; }
+
+    // Note: Only guestId and roomNo can be obtained here; a complete Booking object cannot be created directly.
+    // The corresponding Guest and Room objects must first be retrieved in the Controller layer,
+    // and then the Booking object can be constructed manually.
+    // Format: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus
     public static Booking fromCsvLine(String line, Guest guest, Room room) {
         String[] parts = line.split(",");
-        if (parts.length != 6) {
+        if (parts.length != 7) {
             throw new IllegalArgumentException("Invalid Booking data format: " + line);
         }
         Booking booking = new Booking(
@@ -71,7 +84,8 @@ public class Booking {
                 room,
                 LocalDate.parse(parts[3].trim()),
                 LocalDate.parse(parts[4].trim()),
-                parts[5].trim()
+                parts[5].trim(),
+                BookingType.valueOf(parts[6].trim().toUpperCase())
         );
         // Preserve the IDs from the booking file even if lookup returned null.
         booking.guestId = parts[1].trim();
@@ -85,12 +99,13 @@ public class Booking {
                     + " is missing its guest ID or room number.");
         }
         return confirmationNo + "," + guestId + "," + roomNo + "," +
-                checkInDate + "," + checkOutDate + "," + bookingStatus;
+                checkInDate + "," + checkOutDate + "," + bookingStatus + "," + bookingType;
     }
 
     @Override
     public String toString() {
         String guestDisplay = guest == null ? guestId : guest.getName();
-        return "Booking{" + confirmationNo + ", Guest:" + guestDisplay + ", Room:" + roomNo + "}";
+        return "Booking{" + confirmationNo + ", Type:" + bookingType
+                + ", Guest:" + guestDisplay + ", Room:" + roomNo + "}";
     }
 }
