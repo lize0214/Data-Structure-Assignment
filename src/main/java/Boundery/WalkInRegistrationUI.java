@@ -190,13 +190,13 @@ public class WalkInRegistrationUI {
                     handleCancelWalkIn();
                     break;
 
-                case "5":
+                case "0":
                     running = false;
-                    System.out.println("\nReturning to Main Menu...\n");
+                    System.out.println("\nReturning to Booking Menu...\n");
                     break;
 
                 default:
-                    System.out.println("\nInvalid option. Please enter 1 to 5.\n");
+                    System.out.println("\nInvalid option. Please enter 0 to 4.\n");
             }
         }
     }
@@ -215,9 +215,9 @@ public class WalkInRegistrationUI {
                 + "                   2. Process Next Guest in Queue                              \n"
                 + "                   3. View Waiting Queue                                       \n"
                 + "                   4. Cancel Walk-In Registration                              \n"
-                + "                   5. Back to Main Menu                                        \n"
+                + "                   0. Back                                                     \n"
                 + "------------------------------------------------------------------------------\n"
-                + "Enter 1 - 5 to select an option: "
+                + "Enter your choice: "
         );
     }
 

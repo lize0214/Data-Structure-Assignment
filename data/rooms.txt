@@ -1,3 +1,4 @@
+099,Single,120.0,Occupied
 100,Single,120.0,Occupied
 101,Single,120.0,Available
 102,Single,120.0,Occupied
@@ -10,5 +11,4 @@
 203,Suite,480.0,Occupied
 205,Deluxe,260.0,Dirty
 206,Deluxe,260.0,Occupied
-204,Presidential,900.0,Available
-205,Deluxe,260.0,Dirty
+207,Deluxe,260.0,Available

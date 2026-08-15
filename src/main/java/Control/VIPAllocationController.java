@@ -172,7 +172,7 @@ public class VIPAllocationController {
         String confirmationNo = generateConfirmationNo();
         LocalDate today = LocalDate.now();
         Booking booking = new Booking(confirmationNo, guest, availableRoom,
-                today, today.plusDays(1), "CheckedIn");
+                today, today.plusDays(1), "CheckedIn", BookingType.VIP);
         ControllerResult bookingResult = bookingController.add(booking);
         if (!bookingResult.isOk()) {
             // Rollback room status
@@ -468,6 +468,6 @@ public class VIPAllocationController {
      * Generates a unique 8-digit confirmation number for a booking.
      */
     private String generateConfirmationNo() {
-        return String.format("%08d", (int) (Math.random() * 100_000_000));
+        return bookingController.nextNumericConfirmationNo();
     }
 }

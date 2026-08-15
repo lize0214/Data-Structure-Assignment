@@ -8,6 +8,7 @@ import ADT.ListInterface;
 import Entity.Guest;
 import Entity.Room;
 import Entity.Booking;
+import Entity.BookingType;
 import Utility.ControllerResult;
 import Utility.ValidationUtility;
 import Utility.FileUtility;
@@ -139,7 +140,8 @@ public class WalkInRegistrationController {
                 availableRoom,
                 checkInDate,
                 checkOutDate,
-                BOOKING_STATUS_CONFIRMED
+                BOOKING_STATUS_CONFIRMED,
+                BookingType.WALK_IN
         );
 
         ControllerResult bookingResult =
@@ -405,15 +407,7 @@ public class WalkInRegistrationController {
      */
     private String generateConfirmationNo() {
 
-        String confirmationNo =
-                "WI" + String.format(
-                        "%06d",
-                        confirmationCounter
-                );
-
-        confirmationCounter++;
-
-        return confirmationNo;
+        return bookingController.nextNumericConfirmationNo();
     }
 
     /**

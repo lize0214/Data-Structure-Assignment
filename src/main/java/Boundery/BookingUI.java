@@ -181,7 +181,7 @@ public class BookingUI {
                     handleViewReport();
                     break;
 
-                case "4":
+                case "0":
                     running = false;
 
                     System.out.println(
@@ -192,7 +192,7 @@ public class BookingUI {
                 default:
                     System.out.println(
                             "\nInvalid option. "
-                            + "Please enter 1 to 4.\n"
+                            + "Please enter 0 to 3.\n"
                     );
             }
         }
@@ -211,9 +211,9 @@ public class BookingUI {
                 + "                   1. Walk-In Registration                                     \n"
                 + "                   2. Standard Booking                                         \n"
                 + "                   3. View Report                                              \n"
-                + "                   4. Back to Main Menu                                        \n"
+                + "                   0. Return to Main Menu                                      \n"
                 + "------------------------------------------------------------------------------\n"
-                + "Enter 1 - 4 to select an option: "
+                + "Enter your choice: "
         );
     }
 
@@ -243,16 +243,16 @@ public class BookingUI {
                     + "                   1. Add Booking                                             \n"
                     + "                   2. Modify Booking                                          \n"
                     + "                   3. Cancel Booking                                          \n"
-                    + "                   4. Back                                                     \n"
+                    + "                   0. Back                                                     \n"
                     + "------------------------------------------------------------------------------\n"
-                    + "Enter 1 - 4 to select an option: ");
+                    + "Enter your choice: ");
             switch (scanner.nextLine().trim()) {
                 case "1": addStandardBooking(); break;
                 case "2": modifyStandardBooking(); break;
                 case "3": cancelStandardBooking(); break;
-                case "4": running = false; break;
+                case "0": running = false; break;
                 default:
-                    System.out.println("Invalid option. Please enter 1 to 4.");
+                    System.out.println("Invalid option. Please enter 0 to 3.");
                     pressEnterToContinue();
             }
         }
@@ -394,10 +394,10 @@ public class BookingUI {
 
     private String readStandardConfirmationNo() {
         while (true) {
-            System.out.print("Confirmation No (SB######)   : ");
-            String value = scanner.nextLine().trim().toUpperCase();
+            System.out.print("Confirmation No (8 digits)   : ");
+            String value = scanner.nextLine().trim();
             if (bookingController.isValidStandardConfirmationNo(value)) return value;
-            System.out.println("Invalid format. Example: SB000001.");
+            System.out.println("Invalid format. Example: 00000001.");
         }
     }
 
@@ -437,7 +437,7 @@ public class BookingUI {
                     + "                   1. Waiting List Report                                     \n"
                     + "                   2. Registration Report                                     \n"
                     + "                   3. Standard Booking Report                                 \n"
-                    + "                   4. Back                                                     \n"
+                    + "                   0. Back                                                     \n"
                     + "------------------------------------------------------------------------------\n"
                     + "Enter 1 - 4 to select an option: ");
 
@@ -451,7 +451,7 @@ public class BookingUI {
                 case "3":
                     handleStandardBookingReport();
                     break;
-                case "4":
+                case "0":
                     running = false;
                     break;
                 default:
