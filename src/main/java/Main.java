@@ -4,7 +4,7 @@
 import Entity.Room;
 import Control.RoomController;
 import Utility.ControllerResult;
-import Boundery.MainMenuUI;
+import Boundary.MainMenuUI;
 /**
  *
  * @author USER

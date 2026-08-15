@@ -4,28 +4,44 @@
  */
 package Utility;
 
+import ADT.ArrayList;
+import ADT.ListInterface;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
-// Author: [Your Name]
 public class FileUtility {
 
     // Read all lines from a file.
     // Return the content as a String array.
     public static String[] readLines(String filePath) {
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(new FileInputStream(filePath), StandardCharsets.UTF_8))) {
+
+        ListInterface<String> lines = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(filePath), StandardCharsets.UTF_8))) {
+
             String line;
+
             while ((line = br.readLine()) != null) {
+
                 if (!line.trim().isEmpty()) {
                     lines.add(line);
                 }
             }
+
         } catch (IOException e) {
-            System.out.println("Error reading file: " + filePath + " - " + e.getMessage());
+
+            System.out.println("Error reading file: " + filePath + " - "+ e.getMessage());
         }
-        return lines.toArray(new String[0]);
+
+        String[] result =
+                new String[lines.size()];
+
+        for (int i = 1; i <= lines.size(); i++) {
+            result[i - 1] =
+                    lines.getEntry(i);
+        }
+
+        return result;
     }
 
     // Append a new line to the file.

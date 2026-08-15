@@ -2,7 +2,7 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt
  * to change this license
  */
-package Boundery;
+package Boundary;
 
 import Control.WalkInRegistrationController;
 import Control.GuestController;

@@ -59,16 +59,29 @@ public class FrontDeskController {
     }
 
     public ControllerResult searchByConfirmationNo(String confNo) {
+
         String validationError = validateConfirmationNo(confNo);
+
         if (validationError != null) {
             return ControllerResult.fail(validationError);
         }
 
-        Booking booking = searchIndex.search(confNo.trim());
+        Booking booking =
+                searchIndex.search(confNo.trim());
+
         if (booking == null) {
             return ControllerResult.fail("No booking found for confirmation number: " + confNo);
         }
-        return ControllerResult.success(formatBookingDetails(booking));
+
+        StringBuilder sb = new StringBuilder();
+
+        appendBookingTableHeader(sb);
+        appendBookingRow(sb, booking);
+        appendBookingTableFooter(sb);
+
+        return ControllerResult.success(
+                sb.toString()
+        );
     }
 
     public ControllerResult checkAssignedRoomStatus(String confNo) {
@@ -83,8 +96,37 @@ public class FrontDeskController {
         }
 
         Room room = booking.getRoom();
-        String message = String.format("Room %s (%s) status: %s", room.getRoomNo(), room.getRoomType(), room.getStatus());
-        return ControllerResult.success(message);
+
+        String line =
+                "------------------------------------------------------------------------------";
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("\n").append(line).append("\n");
+
+        sb.append(String.format(
+                "%-10s %-20s %-8s %-16s %s%n",
+                "Conf#",
+                "Guest",
+                "Room",
+                "Type",
+                "Status"
+        ));
+
+        sb.append(line).append("\n");
+
+        sb.append(String.format(
+                "%-10s %-20s %-8s %-16s %s%n",
+                booking.getConfirmationNo(),
+                booking.getGuest().getName(),
+                room.getRoomNo(),
+                room.getRoomType(),
+                room.getStatus()
+        ));
+
+        sb.append(line);
+
+        return ControllerResult.success(sb.toString());
     }
 
     public ControllerResult getBillingDetails(String confNo) {
@@ -101,16 +143,65 @@ public class FrontDeskController {
         long nights = nightsBetween(booking);
         double total = calculateTotal(booking);
 
-        String message = String.format(
-                "%s | Room %s (%s) | %d night(s) x RM%.2f = RM%.2f",
-                booking.getGuest().getName(),
+        String line = "------------------------------------------------------------------------------";
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("\n")
+                .append(line)
+                .append("\n");
+
+        sb.append(String.format(
+                "%45s%n",
+                "BILLING DETAILS"
+        ));
+
+        sb.append(line)
+                .append("\n");
+
+        sb.append(String.format(
+                "%-17s: %s%n",
+                "Confirmation No.",
+                booking.getConfirmationNo()
+        ));
+
+        sb.append(String.format(
+                "%-17s: %s%n",
+                "Guest Name",
+                booking.getGuest().getName()
+        ));
+
+        sb.append(String.format(
+                "%-17s: %s (%s)%n",
+                "Room",
                 booking.getRoom().getRoomNo(),
-                booking.getRoom().getRoomType(),
-                nights,
-                booking.getRoom().getPrice(),
+                booking.getRoom().getRoomType()
+        ));
+
+        sb.append(String.format(
+                "%-17s: RM%.2f / night%n",
+                "Room Rate",
+                booking.getRoom().getPrice()
+        ));
+
+        sb.append(String.format(
+                "%-17s: %d%n",
+                "Number of Nights",
+                nights
+        ));
+
+        sb.append(line)
+                .append("\n");
+
+        sb.append(String.format(
+                "%-17s: RM%.2f%n",
+                "Total Amount",
                 total
-        );
-        return ControllerResult.success(message);
+        ));
+
+        sb.append(line);
+
+        return ControllerResult.success(sb.toString());
     }
 
     /**
@@ -118,12 +209,67 @@ public class FrontDeskController {
      * FrontDeskUI's Check-Out flow to decide whether payment needs to be
      * collected before finishing the check-out.
      */
+    public boolean isBookingCheckedIn(String confNo) {
+
+        if (confNo == null) {
+            return false;
+        }
+
+        Booking booking =
+                searchIndex.search(confNo.trim());
+
+        return booking != null
+                && "CheckedIn".equalsIgnoreCase(
+                        booking.getBookingStatus()
+                );
+    }
+    
     public boolean isBookingCheckedOut(String confNo) {
         if (confNo == null) {
             return false;
         }
         Booking booking = searchIndex.search(confNo.trim());
         return booking != null && "CheckedOut".equalsIgnoreCase(booking.getBookingStatus());
+    }
+    
+    public LocalDate getScheduledCheckOutDate(String confNo) {
+
+        if (confNo == null) {
+            return null;
+        }
+
+        Booking booking =
+                searchIndex.search(confNo.trim());
+
+        return booking == null
+                ? null
+                : booking.getCheckOutDate();
+    }
+
+    public String getCheckOutTiming(String confNo) {
+
+        Booking booking =
+                searchIndex.search(confNo.trim());
+
+        if (booking == null) {
+            return null;
+        }
+
+        LocalDate today =
+                LocalDate.now();
+
+        LocalDate scheduled =
+                booking.getCheckOutDate();
+
+        if (today.isBefore(scheduled)) {
+            return "EARLY";
+        }
+
+        if (today.isAfter(scheduled)) {
+            return "LATE";
+        }
+
+        return "ON_TIME";
     }
 
     /** Returns the room number tied to a booking, or null if not found. Used
@@ -145,31 +291,69 @@ public class FrontDeskController {
      * (name search can't hash to a single bucket the way an exact key can).
      */
     public ControllerResult searchByGuestName(String name) {
-        String error = ValidationUtility.validateRequired(name, "Guest name");
+
+        String error =
+                ValidationUtility.validateRequired(
+                        name,
+                        "Guest name"
+                );
+
         if (error != null) {
             return ControllerResult.fail(error);
         }
 
-        String needle = name.trim().toLowerCase();
-        ListInterface<Booking> all = bookingController.getAll();
+        String needle =
+                name.trim().toLowerCase();
 
-        StringBuilder sb = new StringBuilder();
+        ListInterface<Booking> all =
+                bookingController.getAll();
+
+        StringBuilder sb =
+                new StringBuilder();
+
         int matches = 0;
+
+        // Linear search
         for (int i = 1; i <= all.size(); i++) {
-            Booking b = all.getEntry(i);
-            if (b.getGuest().getName().toLowerCase().contains(needle)) {
-                if (matches > 0) {
-                    sb.append("\n");
+
+            Booking booking =
+                    all.getEntry(i);
+
+            if (booking.getGuest()
+                    .getName()
+                    .toLowerCase()
+                    .contains(needle)) {
+
+                // Print header only once
+                if (matches == 0) {
+                    appendBookingTableHeader(sb);
                 }
-                sb.append(formatBookingDetails(b));
+
+                appendBookingRow(
+                        sb,
+                        booking
+                );
+
                 matches++;
             }
         }
 
         if (matches == 0) {
-            return ControllerResult.fail("No booking found for guest name: " + name);
+            return ControllerResult.fail(
+                    "No booking found for guest name: " + name
+            );
         }
-        return ControllerResult.success(sb.toString());
+
+        appendBookingTableFooter(sb);
+
+        sb.append("\n");
+        sb.append(
+                "Total Matches: "
+        ).append(matches);
+
+        return ControllerResult.success(
+                sb.toString()
+        );
     }
 
     /**
@@ -379,22 +563,10 @@ public class FrontDeskController {
      * status and/or check-out date range) revenue report.
      * Pass null / blank for statusFilter, and null for start/end to skip those filters.
      */
-    public ControllerResult revenueReport(
-            String statusFilter,
-            LocalDate start,
-            LocalDate end) {
+    public ControllerResult revenueReport(LocalDate start, LocalDate end) {
 
         Booking[] bookings =
                 toArray(bookingController.getAll());
-
-        if (statusFilter != null
-                && !statusFilter.isBlank()) {
-
-            bookings = filterByStatus(
-                    bookings,
-                    statusFilter.trim()
-            );
-        }
 
         if (start != null || end != null) {
             bookings = filterByDateRange(
@@ -406,12 +578,6 @@ public class FrontDeskController {
 
         insertionSortByTotalDescending(bookings);
 
-        if (bookings.length == 0) {
-            return ControllerResult.success(
-                    "No bookings match the given filters."
-            );
-        }
-
         double grandTotal = 0;
         int paidCount = 0;
 
@@ -421,16 +587,14 @@ public class FrontDeskController {
                 "------------------------------------------------------------------------------\n"
         );
 
-        sb.append(
-                String.format(
-                        "%-10s %-20s %-8s %-12s %s%n",
-                        "Conf#",
-                        "Guest",
-                        "Nights",
-                        "Status",
-                        "Total (RM)"
-                )
-        );
+        sb.append(String.format(
+                "%-10s %-20s %-8s %-12s %s%n",
+                "Conf#",
+                "Guest",
+                "Nights",
+                "Status",
+                "Total (RM)"
+        ));
 
         sb.append(
                 "------------------------------------------------------------------------------\n"
@@ -438,7 +602,7 @@ public class FrontDeskController {
 
         for (Booking b : bookings) {
 
-            // Revenue only includes successful payments
+            // Revenue = successful payments only
             if (!paymentController.isPaid(
                     b.getConfirmationNo())) {
                 continue;
@@ -449,21 +613,19 @@ public class FrontDeskController {
             grandTotal += total;
             paidCount++;
 
-            sb.append(
-                    String.format(
-                            "%-10s %-20s %-8d %-12s %.2f%n",
-                            b.getConfirmationNo(),
-                            b.getGuest().getName(),
-                            nightsBetween(b),
-                            b.getBookingStatus(),
-                            total
-                    )
-            );
+            sb.append(String.format(
+                    "%-10s %-20s %-8d %-12s %.2f%n",
+                    b.getConfirmationNo(),
+                    b.getGuest().getName(),
+                    nightsBetween(b),
+                    b.getBookingStatus(),
+                    total
+            ));
         }
 
         if (paidCount == 0) {
             return ControllerResult.success(
-                    "No paid bookings match the given filters."
+                    "No paid bookings match the given date range."
             );
         }
 
@@ -471,46 +633,70 @@ public class FrontDeskController {
                 "------------------------------------------------------------------------------\n"
         );
 
-        sb.append(
-                String.format(
-                        "Total Revenue Collected: RM%.2f (%d paid booking(s))%n",
-                        grandTotal,
-                        paidCount
-                )
-        );
+        sb.append(String.format(
+                "Total Revenue Collected: RM %.2f (%d paid booking(s))%n",
+                grandTotal,
+                paidCount
+        ));
 
         sb.append(
                 "------------------------------------------------------------------------------"
         );
 
-        return ControllerResult.success(
-                sb.toString()
-        );
+        return ControllerResult.success(sb.toString());
     }
 
     /**
      * Bookings not yet checked out (i.e. not yet paid), sorted by amount
      * due, descending, so the highest outstanding balances surface first.
      */
-    public ControllerResult outstandingPaymentsReport() {
+    public ControllerResult outstandingPaymentsReport(String statusFilter, LocalDate start, LocalDate end) {
 
         Booking[] bookings =
-                toArray(bookingController.getAll());
+                toArray(
+                        bookingController.getAll()
+                );
 
+        // Only unpaid bookings
         bookings =
                 filterUnpaidBookings(bookings);
 
+        // Optional booking status filter
+        if (statusFilter != null
+                && !statusFilter.isBlank()) {
+
+            bookings =
+                    filterByStatus(
+                            bookings,
+                            statusFilter.trim()
+                    );
+        }
+
+        // Optional checkout date range filter
+        if (start != null || end != null) {
+
+            bookings =
+                    filterByDateRange(
+                            bookings,
+                            start,
+                            end
+                    );
+        }
+
+        // Highest outstanding amount first
         insertionSortByTotalDescending(bookings);
 
         if (bookings.length == 0) {
+
             return ControllerResult.success(
-                    "No outstanding payments - all bookings are settled."
+                    "No outstanding payments match the given filters."
             );
         }
 
         double totalOutstanding = 0;
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb =
+                new StringBuilder();
 
         sb.append(
                 "------------------------------------------------------------------------------\n"
@@ -532,7 +718,8 @@ public class FrontDeskController {
 
         for (Booking b : bookings) {
 
-            double due = calculateTotal(b);
+            double due =
+                    calculateTotal(b);
 
             totalOutstanding += due;
 
@@ -553,7 +740,7 @@ public class FrontDeskController {
 
         sb.append(
                 String.format(
-                        "Total Outstanding: RM%.2f (%d booking(s))%n",
+                        "Total Outstanding: RM %.2f (%d booking(s))%n",
                         totalOutstanding,
                         bookings.length
                 )
@@ -688,16 +875,55 @@ public class FrontDeskController {
         return booking.getRoom().getPrice() * nightsBetween(booking);
     }
 
-    private String formatBookingDetails(Booking b) {
-        return String.format(
-                "Confirmation #%s | Guest: %s | Room: %s (%s) | %s -> %s | Status: %s",
-                b.getConfirmationNo(),
-                b.getGuest().getName(),
-                b.getRoom().getRoomNo(),
-                b.getRoom().getRoomType(),
-                b.getCheckInDate(),
-                b.getCheckOutDate(),
-                b.getBookingStatus()
+    private void appendBookingTableHeader(StringBuilder sb) {
+
+        String line =
+                "----------------------------------------------------------------------------------------------";
+
+        sb.append(line)
+                .append("\n");
+
+        sb.append(
+                String.format(
+                        "%-10s %-20s %-8s %-12s %-12s %s%n",
+                        "Conf#",
+                        "Guest",
+                        "Room",
+                        "Type",
+                        "Status",
+                        "Check-In -> Check-Out"
+                )
+        );
+
+        sb.append(line)
+                .append("\n");
+    }
+
+
+    private void appendBookingRow(
+            StringBuilder sb,
+            Booking booking) {
+
+        sb.append(
+                String.format(
+                        "%-10s %-20s %-8s %-12s %-12s %s -> %s%n",
+                        booking.getConfirmationNo(),
+                        booking.getGuest().getName(),
+                        booking.getRoom().getRoomNo(),
+                        booking.getRoom().getRoomType(),
+                        booking.getBookingStatus(),
+                        booking.getCheckInDate(),
+                        booking.getCheckOutDate()
+                )
+        );
+    }
+
+
+    private void appendBookingTableFooter(
+            StringBuilder sb) {
+
+        sb.append(
+                "----------------------------------------------------------------------------------------------"
         );
     }
 

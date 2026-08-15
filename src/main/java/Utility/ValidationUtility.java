@@ -1,9 +1,8 @@
 package Utility;
 
+import ADT.ArrayList;
+import ADT.ListInterface;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Common validation utility — returns null on success, error message string on failure.
  */
@@ -137,7 +136,9 @@ public class ValidationUtility {
      * }</pre>
      */
     public static class ValidationAccumulator {
-        private final List<String> errors = new ArrayList<>();
+
+        private final ListInterface<String> errors =
+                new ArrayList<>();
 
         public void check(String error) {
             if (error != null) {
@@ -150,7 +151,19 @@ public class ValidationUtility {
         }
 
         public String getErrorMessage() {
-            return String.join("; ", errors);
+
+            StringBuilder sb = new StringBuilder();
+
+            for (int i = 1; i <= errors.size(); i++) {
+
+                if (i > 1) {
+                    sb.append("; ");
+                }
+
+                sb.append(errors.getEntry(i));
+            }
+
+            return sb.toString();
         }
     }
 }
