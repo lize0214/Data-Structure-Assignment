@@ -1,4 +1,4 @@
-package Boundery;
+package Boundary;
 
 import Control.*;
 import Entity.Room;
