@@ -1,13 +1,32 @@
 package ADT;
 
-import java.util.Iterator;
-
 /**
- * CircularArrayQueue.java  A class that implements the ADT Queue using a
- * circular array with one unused location.
+ * Implements {@link QueueInterface} using a circular array with one unused
+ * location to distinguish a full queue from an empty queue.
  *
- * @author Frank M. Carrano
- * @version 2.0
+ * <p>This implementation is adapted from the circular-array Queue ADT by
+ * Frank M. Carrano. Ben Chin adapted it for the TARUMT Resorts walk-in
+ * registration module by adding a project-owned iterator and the
+ * {@link #size()} operation.</p>
+ *
+ * <p>A circular array is appropriate for walk-in registration because it
+ * preserves FIFO processing while reusing array positions freed by dequeue.
+ * Entries therefore do not need to be shifted after a guest is processed.
+ * This implementation has a fixed capacity; enqueue leaves the queue
+ * unchanged when it is full.</p>
+ *
+ * <p>Time complexities:</p>
+ * <ul>
+ *   <li>enqueue, dequeue, getFront, isEmpty and size: O(1)</li>
+ *   <li>clear: O(n)</li>
+ *   <li>iterator creation: O(1), and each iterator step: O(1)</li>
+ * </ul>
+ * Space complexity is O(c), where c is the configured queue capacity.
+ *
+ * @param <T> the type of entry stored in the queue
+ * @author Frank M. Carrano (original implementation)
+ * @author Ben Chin (assignment adaptation)
+ * @version 2.1
  */
 public class CircularArrayQueue<T> implements QueueInterface<T> {
 
@@ -76,11 +95,11 @@ public class CircularArrayQueue<T> implements QueueInterface<T> {
   }
 
   @Override
-  public Iterator<T> getIterator() {
+  public QueueIterator<T> getIterator() {
     return new CircularArrayQueueIterator();
   }
 
-  private class CircularArrayQueueIterator implements Iterator<T> {
+  private class CircularArrayQueueIterator implements QueueIterator<T> {
     private int nextIndex;          // next array slot to read
     private int count;              // how many entries already returned
     private final int totalEntries; // number of entries in the queue at iterator creation

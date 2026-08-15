@@ -8,8 +8,9 @@ import Utility.ControllerResult;
 import Utility.ValidationUtility;
 
 import java.time.LocalDate;
-//aaa
+// Author: Ben Chin
 public class BookingController extends AbstractEntityController<Booking, String> {
+    private static final String STANDARD_PREFIX = "SB";
     private final GuestController guestController;
     private final RoomController roomController;
 
@@ -128,6 +129,167 @@ public class BookingController extends AbstractEntityController<Booking, String>
         return ControllerResult.success();
     }
 
+    /** Adds a standard reservation to the custom List ADT in check-in-date order. */
+    public ControllerResult addStandardBooking(Guest guest, Room room,
+            LocalDate checkInDate, LocalDate checkOutDate) {
+        String error = validateStandardBooking(guest, room, checkInDate, checkOutDate, null);
+        if (error != null) return ControllerResult.fail(error);
+
+        String confirmationNo = nextStandardConfirmationNo();
+        Booking booking = new Booking(confirmationNo, guest, room,
+                checkInDate, checkOutDate, "Confirmed");
+        insertChronologically(booking);
+        saveToFile();
+        return ControllerResult.success("Booking created. Confirmation No: " + confirmationNo);
+    }
+
+    public ControllerResult addStandardBooking(String guestId, String roomNo,
+            LocalDate checkInDate, LocalDate checkOutDate) {
+        return addStandardBooking(guestController.findByKey(guestId),
+                roomController.findByKey(roomNo), checkInDate, checkOutDate);
+    }
+
+    /** Creates a generated guest record and its standard booking as one operation. */
+    public ControllerResult addStandardBookingForNewGuest(String guestId, String name,
+            String contact, String roomNo, LocalDate checkInDate, LocalDate checkOutDate) {
+        Room room = roomController.findByKey(roomNo);
+        Guest guest = new Guest(guestId, name, contact);
+
+        String bookingError = validateStandardBooking(
+                guest, room, checkInDate, checkOutDate, null);
+        if (bookingError != null) return ControllerResult.fail(bookingError);
+
+        ControllerResult guestResult = guestController.addGeneratedGuest(
+                guestId, name, contact);
+        if (!guestResult.isOk()) return guestResult;
+
+        ControllerResult bookingResult = addStandardBooking(
+                guestController.findByKey(guestId), room, checkInDate, checkOutDate);
+        if (!bookingResult.isOk()) {
+            guestController.delete(guestId);
+            return bookingResult;
+        }
+
+        return ControllerResult.success("Guest ID: " + guestId + ". "
+                + bookingResult.getMessage());
+    }
+
+    public ControllerResult modifyStandardBooking(String confirmationNo, Guest guest, Room room,
+            LocalDate checkInDate, LocalDate checkOutDate) {
+        if (!isValidStandardConfirmationNo(confirmationNo)) {
+            return ControllerResult.fail("Confirmation number must use format SB followed by 6 digits.");
+        }
+        Booking existing = findByKey(confirmationNo);
+        if (existing == null) return ControllerResult.fail("Booking not found: " + confirmationNo);
+        if (!confirmationNo.startsWith(STANDARD_PREFIX))
+            return ControllerResult.fail("This is not a standard booking.");
+        if ("Cancelled".equalsIgnoreCase(existing.getBookingStatus()))
+            return ControllerResult.fail("A cancelled booking cannot be modified.");
+
+        String error = validateStandardBooking(guest, room, checkInDate, checkOutDate, confirmationNo);
+        if (error != null) return ControllerResult.fail(error);
+
+        list.remove(findIndexByKey(confirmationNo));
+        existing.setGuest(guest);
+        existing.setRoom(room);
+        existing.setCheckInDate(checkInDate);
+        existing.setCheckOutDate(checkOutDate);
+        insertChronologically(existing);
+        saveToFile();
+        return ControllerResult.success("Booking " + confirmationNo + " modified.");
+    }
+
+    public ControllerResult modifyStandardBooking(String confirmationNo, String guestId,
+            String roomNo, LocalDate checkInDate, LocalDate checkOutDate) {
+        return modifyStandardBooking(confirmationNo, guestController.findByKey(guestId),
+                roomController.findByKey(roomNo), checkInDate, checkOutDate);
+    }
+
+    public boolean guestExists(String guestId) {
+        return guestController.findByKey(guestId) != null;
+    }
+
+    public boolean roomExists(String roomNo) {
+        return roomController.findByKey(roomNo) != null;
+    }
+
+    public ControllerResult cancelStandardBooking(String confirmationNo) {
+        if (!isValidStandardConfirmationNo(confirmationNo)) {
+            return ControllerResult.fail("Confirmation number must use format SB followed by 6 digits.");
+        }
+        Booking booking = findByKey(confirmationNo);
+        if (booking == null) return ControllerResult.fail("Booking not found: " + confirmationNo);
+        if (!confirmationNo.startsWith(STANDARD_PREFIX))
+            return ControllerResult.fail("This is not a standard booking.");
+        if ("Cancelled".equalsIgnoreCase(booking.getBookingStatus()))
+            return ControllerResult.fail("Booking is already cancelled.");
+        booking.setBookingStatus("Cancelled");
+        saveToFile();
+        return ControllerResult.success("Booking " + confirmationNo + " cancelled.");
+    }
+
+    private String validateStandardBooking(Guest guest, Room room, LocalDate checkIn,
+            LocalDate checkOut, String excludedConfirmationNo) {
+        if (guest == null) return "Guest is required.";
+        if (room == null) return "Room is required.";
+        String dateError = ValidationUtility.validateDateRange(checkIn, checkOut);
+        if (dateError != null) return dateError;
+        if (checkIn.isBefore(LocalDate.now())) return "Check-in date cannot be in the past.";
+        if (checkIn.equals(LocalDate.now())
+                && !("Available".equalsIgnoreCase(room.getStatus())
+                || "ReadyForCheckIn".equalsIgnoreCase(room.getStatus()))) {
+            return "Room " + room.getRoomNo() + " is not ready for check-in today (status: "
+                    + room.getStatus() + ").";
+        }
+        for (int i = 1; i <= list.size(); i++) {
+            Booking booking = list.getEntry(i);
+            // A legacy file record may reference a guest/room that was removed.
+            // Ignore that unresolved record here instead of crashing the booking flow.
+            if (booking.getGuest() == null || booking.getRoom() == null) continue;
+            if (excludedConfirmationNo != null
+                    && excludedConfirmationNo.equals(booking.getConfirmationNo())) continue;
+            if (!room.getRoomNo().equals(booking.getRoom().getRoomNo())) continue;
+            if ("Cancelled".equalsIgnoreCase(booking.getBookingStatus())
+                    || "CheckedOut".equalsIgnoreCase(booking.getBookingStatus())) continue;
+            if (checkIn.isBefore(booking.getCheckOutDate())
+                    && checkOut.isAfter(booking.getCheckInDate()))
+                return "Room " + room.getRoomNo() + " is booked during that date range.";
+        }
+        return null;
+    }
+
+    public boolean isValidStandardConfirmationNo(String confirmationNo) {
+        return confirmationNo != null && confirmationNo.matches("SB\\d{6}");
+    }
+
+    public String validateReportFilters(String status, LocalDate fromDate, LocalDate toDate) {
+        if (status != null && !status.isEmpty()
+                && ValidationUtility.validateBookingStatus(status) != null) {
+            return ValidationUtility.validateBookingStatus(status);
+        }
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            return "Report start date cannot be after the end date.";
+        }
+        return null;
+    }
+
+    private void insertChronologically(Booking booking) {
+        int position = 1;
+        while (position <= list.size()
+                && !booking.getCheckInDate().isBefore(list.getEntry(position).getCheckInDate())) {
+            position++;
+        }
+        list.add(position, booking);
+    }
+
+    private String nextStandardConfirmationNo() {
+        int number = 1;
+        String value;
+        do value = STANDARD_PREFIX + String.format("%06d", number++);
+        while (findByKey(value) != null);
+        return value;
+    }
+
     /**
      * Generates the Registration Report: all bookings that originated from a
      * Walk-In Registration (confirmation numbers prefixed "WI"), sorted by
@@ -136,12 +298,51 @@ public class BookingController extends AbstractEntityController<Booking, String>
      * from the Waiting List Report, which shows guests not yet processed.
      */
     public Booking[] getWalkInRegistrationReport() {
+        return getWalkInRegistrationReport("", null, null, "");
+    }
+
+    /** Linear search with status, date-range and guest-name filters, then selection sort. */
+    public Booking[] getWalkInRegistrationReport(String status, LocalDate fromDate,
+            LocalDate toDate, String guestKeyword) {
+        return getBookingReportByPrefix("WI", status, fromDate, toDate, guestKeyword);
+    }
+
+    /** Standard bookings filtered by status, date range and guest, then manually sorted. */
+    public Booking[] getStandardBookingReport(String status, LocalDate fromDate,
+            LocalDate toDate, String guestKeyword) {
+        return getBookingReportByPrefix(STANDARD_PREFIX, status, fromDate, toDate, guestKeyword);
+    }
+
+    public String[] getWalkInRegistrationReportRows(String status, LocalDate fromDate,
+            LocalDate toDate, String guestKeyword) {
+        return formatBookingRows(getWalkInRegistrationReport(status, fromDate, toDate, guestKeyword));
+    }
+
+    public String[] getStandardBookingReportRows(String status, LocalDate fromDate,
+            LocalDate toDate, String guestKeyword) {
+        return formatBookingRows(getStandardBookingReport(status, fromDate, toDate, guestKeyword));
+    }
+
+    private String[] formatBookingRows(Booking[] bookings) {
+        String[] rows = new String[bookings.length];
+        for (int i = 0; i < bookings.length; i++) {
+            Booking booking = bookings[i];
+            rows[i] = booking.getConfirmationNo() + " | " + booking.getGuest().getName()
+                    + " | Room " + booking.getRoom().getRoomNo() + " | "
+                    + booking.getCheckInDate() + " to " + booking.getCheckOutDate()
+                    + " | " + booking.getBookingStatus();
+        }
+        return rows;
+    }
+
+    private Booking[] getBookingReportByPrefix(String bookingPrefix, String status,
+            LocalDate fromDate, LocalDate toDate, String guestKeyword) {
         ListInterface<Booking> all = getAll();
-        String walkInPrefix = "WI";
 
         int matchCount = 0;
         for (int i = 1; i <= all.size(); i++) {
-            if (all.getEntry(i).getConfirmationNo().startsWith(walkInPrefix)) {
+            if (matchesReportFilters(all.getEntry(i), bookingPrefix, status,
+                    fromDate, toDate, guestKeyword)) {
                 matchCount++;
             }
         }
@@ -150,13 +351,31 @@ public class BookingController extends AbstractEntityController<Booking, String>
         int index = 0;
         for (int i = 1; i <= all.size(); i++) {
             Booking booking = all.getEntry(i);
-            if (booking.getConfirmationNo().startsWith(walkInPrefix)) {
+            if (matchesReportFilters(booking, bookingPrefix, status,
+                    fromDate, toDate, guestKeyword)) {
                 filtered[index++] = booking;
             }
         }
 
         selectionSortByConfirmationNo(filtered);
         return filtered;
+    }
+
+    private boolean matchesReportFilters(Booking booking, String prefix, String status,
+            LocalDate fromDate, LocalDate toDate, String guestKeyword) {
+        // Only complete, resolvable bookings are suitable for a management report.
+        if (booking == null || booking.getGuest() == null || booking.getRoom() == null) {
+            return false;
+        }
+        boolean correctType = booking.getConfirmationNo().startsWith(prefix);
+        boolean correctStatus = status == null || status.isEmpty()
+                || booking.getBookingStatus().equalsIgnoreCase(status);
+        boolean afterStart = fromDate == null || !booking.getCheckInDate().isBefore(fromDate);
+        boolean beforeEnd = toDate == null || !booking.getCheckInDate().isAfter(toDate);
+        boolean correctGuest = guestKeyword == null || guestKeyword.isEmpty()
+                || booking.getGuest().getName().toLowerCase().contains(guestKeyword.toLowerCase())
+                || booking.getGuest().getGuestId().equalsIgnoreCase(guestKeyword);
+        return correctType && correctStatus && afterStart && beforeEnd && correctGuest;
     }
 
     private void selectionSortByConfirmationNo(Booking[] bookings) {
