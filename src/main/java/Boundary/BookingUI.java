@@ -9,6 +9,7 @@ import Control.RoomController;
 import Control.BookingController;
 import Control.WalkInRegistrationController;
 import Entity.Booking;
+import Entity.Guest;
 import Utility.ControllerResult;
 
 import java.time.LocalDate;
@@ -21,6 +22,7 @@ import java.util.Scanner;
 public class BookingUI {
 
     private static final int FIELD_LABEL_WIDTH = 36;
+    private static final int REPORT_WIDTH = 78;
 
     private final GuestController guestController;
     private final RoomController roomController;
@@ -187,6 +189,34 @@ public class BookingUI {
 
     private String fieldPrompt(String label) {
         return String.format("%-" + FIELD_LABEL_WIDTH + "s: ", label);
+    }
+
+    private String reportLine() {
+        return "-".repeat(REPORT_WIDTH);
+    }
+
+    private String centeredReportTitle(String title) {
+        int leftPadding = Math.max(0, (REPORT_WIDTH - title.length()) / 2);
+        return " ".repeat(leftPadding) + title;
+    }
+
+    private void printReportHeader(String title) {
+        System.out.println();
+        System.out.println(reportLine());
+        System.out.println(centeredReportTitle(title));
+        System.out.println(reportLine());
+    }
+
+    private void printBookingTable(Booking[] bookings) {
+        System.out.printf("%-10s %-20s %-7s %-11s %-11s %-12s%n",
+                "CONFIRM NO", "GUEST", "ROOM", "CHECK-IN", "CHECK-OUT", "STATUS");
+        System.out.println(reportLine());
+        for (Booking booking : bookings) {
+            System.out.printf("%-10s %-20.20s %-7s %-11s %-11s %-12s%n",
+                    booking.getConfirmationNo(), booking.getGuest().getName(),
+                    booking.getRoom().getRoomNo(), booking.getCheckInDate(),
+                    booking.getCheckOutDate(), booking.getBookingStatus());
+        }
     }
 
     // ───────────────────── Main Menu ─────────────────────
@@ -615,23 +645,15 @@ public class BookingUI {
         System.out.print(fieldPrompt("Contact number contains"));
         String contactKeyword = scanner.nextLine().trim();
 
-        String[] results = walkInController.getWaitingListReportRows(
+        Guest[] results = walkInController.getWaitingListReport(
                 guestKeyword, contactKeyword);
 
-        System.out.println(
-                "\n=========== WAITING LIST REPORT ==========="
-        );
-
-        System.out.println(fieldPrompt("Total waiting")
-                + results.length + " guest(s)");
-
-        System.out.println(
-                "(sorted alphabetically by name)"
-        );
-
-        System.out.println(
-                "---------------------------------------------"
-        );
+        printReportHeader("WAITING LIST REPORT");
+        System.out.println("Total waiting: " + results.length + " guest(s)");
+        System.out.println("Sorted alphabetically by name");
+        System.out.println();
+        System.out.printf("%-4s %-10s %-30s %-18s%n", "NO.", "GUEST ID", "NAME", "CONTACT");
+        System.out.println(reportLine());
 
         if (results.length == 0) {
 
@@ -641,12 +663,14 @@ public class BookingUI {
 
         } else {
 
-            for (String row : results) System.out.println(row);
+            for (int i = 0; i < results.length; i++) {
+                Guest guest = results[i];
+                System.out.printf("%-4d %-10s %-30.30s %-18s%n", i + 1,
+                        guest.getGuestId(), guest.getName(), guest.getContact());
+            }
         }
 
-        System.out.println(
-                "=============================================\n"
-        );
+        System.out.println(reportLine());
 
         pressEnterToContinue();
     }
@@ -667,23 +691,13 @@ public class BookingUI {
         System.out.print(fieldPrompt("Guest name or ID"));
         String guestKeyword = scanner.nextLine().trim();
 
-        String[] results = bookingController.getWalkInRegistrationReportRows(
+        Booking[] results = bookingController.getWalkInRegistrationReport(
                 status, fromDate, toDate, guestKeyword);
 
-        System.out.println(
-                "\n=========== REGISTRATION REPORT ==========="
-        );
-
-        System.out.println(fieldPrompt("Total processed walk-ins")
-                + results.length + " booking(s)");
-
-        System.out.println(
-                "(sorted by confirmation number)"
-        );
-
-        System.out.println(
-                "---------------------------------------------"
-        );
+        printReportHeader("REGISTRATION REPORT");
+        System.out.println("Total processed walk-ins: " + results.length + " booking(s)");
+        System.out.println("Sorted by confirmation number");
+        System.out.println();
 
         if (results.length == 0) {
 
@@ -694,12 +708,10 @@ public class BookingUI {
 
         } else {
 
-            for (String row : results) System.out.println(row);
+            printBookingTable(results);
         }
 
-        System.out.println(
-                "=============================================\n"
-        );
+        System.out.println(reportLine());
 
         pressEnterToContinue();
     }
@@ -716,22 +728,21 @@ public class BookingUI {
         System.out.print(fieldPrompt("Guest name or ID"));
         String guestKeyword = scanner.nextLine().trim();
 
-        String[] results = bookingController.getStandardBookingReportRows(
+        Booking[] results = bookingController.getStandardBookingReport(
                 status, fromDate, toDate, guestKeyword);
 
-        System.out.println("\n================ STANDARD BOOKING REPORT ================");
-        System.out.println(fieldPrompt("Total standard bookings")
-                + results.length + " booking(s)");
-        System.out.println("(filtered by status/date/guest; sorted by confirmation number)");
-        System.out.println("---------------------------------------------------------");
+        printReportHeader("STANDARD BOOKING REPORT");
+        System.out.println("Total standard bookings: " + results.length + " booking(s)");
+        System.out.println("Filtered by status/date/guest; sorted by confirmation number");
+        System.out.println();
 
         if (results.length == 0) {
             System.out.println("No standard bookings match the selected filters.");
         } else {
-            for (String row : results) System.out.println(row);
+            printBookingTable(results);
         }
 
-        System.out.println("=========================================================\n");
+        System.out.println(reportLine());
         pressEnterToContinue();
     }
 }
