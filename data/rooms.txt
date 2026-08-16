@@ -1,6 +1,6 @@
 099,Single,120.0,Occupied
 100,Single,120.0,Occupied
-101,Single,120.0,Available
+101,Single,120.0,Occupied
 102,Single,120.0,Occupied
 103,Deluxe,250.0,Dirty
 104,Deluxe,250.0,CleaningInProgress
