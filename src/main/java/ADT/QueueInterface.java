@@ -1,12 +1,9 @@
 package ADT;
 
 /**
- * Specifies a first-in, first-out (FIFO) Queue ADT.
- *
- * <p>This interface is adapted from the Queue ADT by Frank M. Carrano.
- * It was adapted by Ben Chin for the TARUMT Resorts assignment by adding a
- * project-owned iterator. No Java Collections Framework
- * collection is required by this interface.</p>
+ * @author Chin Yik Heng
+
+ 
  *
  * <p>The queue is appropriate for the walk-in registration module because a
  * guest who joins the waiting queue first should normally be processed first.
@@ -14,9 +11,6 @@ package ADT;
  * guests are not served strictly by arrival order.</p>
  *
  * @param <T> the type of entry stored in the queue
- * @author Frank M. Carrano (original Queue ADT)
- * @author Ben Chin (assignment adaptation)
- * @version 2.1
  */
 public interface QueueInterface<T> {
 

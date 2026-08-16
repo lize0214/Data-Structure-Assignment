@@ -5,7 +5,6 @@ import java.io.Serializable;
 /**
  * ArrayList.java A class that implements the ADT List using an array.
  *
- * @author Frank M. Carrano
  * @version 2.0
  * @param <T>
  */

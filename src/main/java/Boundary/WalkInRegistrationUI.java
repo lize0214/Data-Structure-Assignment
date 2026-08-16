@@ -14,8 +14,12 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 
-// Author: Ben Chin
+/**
+ * @author Chin Yik Heng
+ */
 public class WalkInRegistrationUI {
+
+    private static final int FIELD_LABEL_WIDTH = 36;
 
     private final WalkInRegistrationController controller;
     private final GuestController guestController;
@@ -28,7 +32,8 @@ public class WalkInRegistrationUI {
     public WalkInRegistrationUI(
             GuestController guestController,
             RoomController roomController,
-            BookingController bookingController) {
+            BookingController bookingController,
+            Scanner scanner) {
 
         this.guestController = guestController;
         this.controller =
@@ -38,7 +43,7 @@ public class WalkInRegistrationUI {
                         bookingController
                 );
 
-        this.scanner = new Scanner(System.in);
+        this.scanner = scanner;
     }
 
     // ───────────────────── Banner (Diet Cola font, patorjk.com/software/taag) ─────────────────────
@@ -127,6 +132,10 @@ public class WalkInRegistrationUI {
         }
     }
 
+    private String fieldPrompt(String label) {
+        return String.format("%-" + FIELD_LABEL_WIDTH + "s: ", label);
+    }
+
     /**
      * "Loading" animation that adapts to where it's running - a real
      * terminal gets a spinner, NetBeans' Output panel (which can't
@@ -190,13 +199,13 @@ public class WalkInRegistrationUI {
                     handleCancelWalkIn();
                     break;
 
-                case "5":
+                case "0":
                     running = false;
-                    System.out.println("\nReturning to Main Menu...\n");
+                    System.out.println("\nReturning to Booking Menu...\n");
                     break;
 
                 default:
-                    System.out.println("\nInvalid option. Please enter 1 to 5.\n");
+                    System.out.println("\nInvalid option. Please enter 0 to 4.\n");
             }
         }
     }
@@ -215,9 +224,9 @@ public class WalkInRegistrationUI {
                 + "                   2. Process Next Guest in Queue                              \n"
                 + "                   3. View Waiting Queue                                       \n"
                 + "                   4. Cancel Walk-In Registration                              \n"
-                + "                   5. Back to Main Menu                                        \n"
+                + "                   0. Back                                                     \n"
                 + "------------------------------------------------------------------------------\n"
-                + "Enter 1 - 5 to select an option: "
+                + "Enter your choice: "
         );
     }
 
@@ -236,9 +245,9 @@ public class WalkInRegistrationUI {
         );
 
         String guestId = guestController.generateNextGuestId();
-        System.out.println("Generated Guest ID       : " + guestId);
-        String name = readValidName("Guest Name                : ");
-        String contact = readValidContact("Guest Contact             : ");
+        System.out.println(fieldPrompt("Generated Guest ID") + guestId);
+        String name = readValidName(fieldPrompt("Guest Name"));
+        String contact = readValidContact(fieldPrompt("Guest Contact"));
 
         showLoading("Registering guest...");
         ControllerResult result = controller.registerWalkIn(guestId, name, contact);
@@ -274,14 +283,50 @@ public class WalkInRegistrationUI {
             return;
         }
 
-        System.out.println("\nNext guest in queue: " + nextGuestName);
+        System.out.println("\n" + fieldPrompt("Next guest in queue") + nextGuestName);
 
-        LocalDate checkInDate = readValidCheckInDate("Enter Check-In Date (yyyy-mm-dd)  : ");
-        LocalDate checkOutDate = readValidDate("Enter Check-Out Date (yyyy-mm-dd) : ");
+        LocalDate checkInDate = readValidCheckInDate(
+                fieldPrompt("Enter Check-In Date (yyyy-mm-dd)"));
+        LocalDate checkOutDate = readValidCheckOutDate(
+                fieldPrompt("Enter Check-Out Date (yyyy-mm-dd)"), checkInDate);
+
+        String preferredRoomType;
+        String[] availableRooms;
+        while (true) {
+            preferredRoomType = readPreferredRoomType();
+            if (preferredRoomType == null) {
+                System.out.println("\nRoom selection cancelled. " + nextGuestName
+                        + " remains at the front of the queue.");
+                pressEnterToContinue();
+                return;
+            }
+            availableRooms = controller.getAvailableRoomRows(
+                    preferredRoomType, checkInDate, checkOutDate);
+            if (availableRooms.length > 0) break;
+            System.out.println("\nNo " + preferredRoomType
+                    + " rooms are available for those dates.");
+            System.out.println("Please choose another room type.");
+        }
+
+        System.out.println("\nAvailable " + preferredRoomType + " rooms:");
+        System.out.printf("%-10s %-12s %-11s %-18s%n",
+                "Room No.", "Room Type", "Price", "Current Status");
+        System.out.println("-------------------------------------------------------");
+        for (String roomRow : availableRooms) System.out.println(roomRow);
+
+        String selectedRoomNo;
+        while (true) {
+            System.out.print("\n" + fieldPrompt("Select Room No"));
+            selectedRoomNo = scanner.nextLine().trim();
+            if (controller.isRoomAvailable(selectedRoomNo, preferredRoomType,
+                    checkInDate, checkOutDate)) break;
+            System.out.println("Please select an available room from the list.");
+        }
 
         showLoading("Processing guest...");
         ControllerResult result =
-                controller.processNextGuest(checkInDate, checkOutDate);
+                controller.processNextGuest(checkInDate, checkOutDate,
+                        preferredRoomType, selectedRoomNo);
 
         printResult(result);
         pressEnterToContinue();
@@ -338,7 +383,7 @@ public class WalkInRegistrationUI {
             return;
         }
 
-        String guestId = readValidId("Guest ID to cancel        : ");
+        String guestId = readValidId(fieldPrompt("Guest ID to cancel"));
 
         if (!confirmAction("\nConfirm cancelling this walk-in registration?")) {
             System.out.println("Cancellation aborted.");
@@ -419,8 +464,34 @@ public class WalkInRegistrationUI {
     private LocalDate readValidCheckInDate(String prompt) {
         while (true) {
             LocalDate checkInDate = readValidDate(prompt);
-            if (!checkInDate.isBefore(LocalDate.now())) return checkInDate;
-            System.out.println("Check-in date cannot be in the past.");
+            if (checkInDate.equals(LocalDate.now())) return checkInDate;
+            System.out.println("A walk-in check-in date must be today.");
+        }
+    }
+
+    private LocalDate readValidCheckOutDate(String prompt, LocalDate checkInDate) {
+        while (true) {
+            LocalDate checkOutDate = readValidDate(prompt);
+            if (checkOutDate.isAfter(checkInDate)) return checkOutDate;
+            System.out.println("Check-out date must be after check-in date.");
+        }
+    }
+
+    private String readPreferredRoomType() {
+        while (true) {
+            System.out.println("\nPreferred Room Type:");
+            System.out.println("1. Single");
+            System.out.println("2. Deluxe");
+            System.out.println("3. Suite");
+            System.out.println("0. Back");
+            System.out.print("Enter your choice: ");
+            switch (scanner.nextLine().trim()) {
+                case "1": return "Single";
+                case "2": return "Deluxe";
+                case "3": return "Suite";
+                case "0": return null;
+                default: System.out.println("Invalid option. Please enter 0 to 3.");
+            }
         }
     }
 

@@ -8,14 +8,21 @@ import Control.GuestController;
 import Control.RoomController;
 import Control.BookingController;
 import Control.WalkInRegistrationController;
+import Entity.Booking;
+import Entity.Guest;
 import Utility.ControllerResult;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 
-// Author: Ben Chin
+/**
+ * @author Chin Yik Heng
+ */
 public class BookingUI {
+
+    private static final int FIELD_LABEL_WIDTH = 36;
+    private static final int REPORT_WIDTH = 78;
 
     private final GuestController guestController;
     private final RoomController roomController;
@@ -99,6 +106,32 @@ public class BookingUI {
             combineBannerParts(BANNER_VIEW_WORD, BANNER_REG_REPORT, 36);
     private static final String[] BANNER_BOOKING_REPORT =
             combineBannerParts(BANNER_BOOKING, BANNER_REG_REPORT, 36);
+    private static final String[] BANNER_AVAILABLE_WORD = {
+        "         /\\                /\\        .----.      .-.          /\\     .-.            .-.           .- ",
+        "     _  / | ..-.     .-._  / |          /   `    / (_)     _  / |    (_) )-.        / (_)  .---;`-'   ",
+        "    (  /  |  . )   /  (  /  |  .      /        /         (  /  |  .    / __)      /      (   (_)     ",
+        "     `/.__|_.'/   /    `/.__|_.'     /        /           `/.__|_.'   /    `.    /        )--        ",
+        " .:' /    |  (  .' .:' /    |       /      .-/.    .-..:' /    |     /'      ).-/.    .-.(      /    ",
+        "(__.'     `-' \\/  (__.'     `-'.---------'(_/ `-._.  (__.'     `-'(_/  `----'(_/ `-._.   `\\___.'     "
+    };
+    private static final String[] BANNER_ROOM_WORD = {
+        "   .-.                           .-.     ",
+        "  (_) )-.      .--.    .-.--.    .-/|/|  ",
+        "     /   \\    /    )`-' /    )`-' /   |  ",
+        "    /     )  /    /    /    /    /    |  ",
+        " .-/  `--'  (    /    (    /.-' /     |  ",
+        "(_/     `-._)`-.'      `-.'(__.'      `. "
+    };
+    private static final String[] BANNER_OVERVIEW_WORD = {
+        "                                .-.-.               .----.         .-          ",
+        "   .--.    .-..-.     .-..---;`-' (_) )-.  ..-.     .-. /   `.---;`-'..-.     .-. ",
+        "  /    )`-'     )   /  (   (_)      /   \\    )   /   /    (   (_)     )   (    ",
+        " /    /        /   /    )--        /     )  /   /   /      )--       /     \\   ",
+        "(    /        (  .'    (      / .-/  `--'  (  .'   /      (      /  (   .   )  ",
+        " `-.'          \\/      `\\___.' (_/     `-._)\\/.---------' `\\___.'    `-' `-'   "
+    };
+    private static final String[] BANNER_AVAILABLE_ROOM_OVERVIEW =
+            combineVerticalBanner(BANNER_AVAILABLE_WORD, BANNER_ROOM_WORD, BANNER_OVERVIEW_WORD);
 
     private static String[] combineVerticalBanner(String[] first, String[] middle, String[] last) {
         String[] combined = new String[first.length + middle.length + last.length];
@@ -154,6 +187,38 @@ public class BookingUI {
         scanner.nextLine();
     }
 
+    private String fieldPrompt(String label) {
+        return String.format("%-" + FIELD_LABEL_WIDTH + "s: ", label);
+    }
+
+    private String reportLine() {
+        return "-".repeat(REPORT_WIDTH);
+    }
+
+    private String centeredReportTitle(String title) {
+        int leftPadding = Math.max(0, (REPORT_WIDTH - title.length()) / 2);
+        return " ".repeat(leftPadding) + title;
+    }
+
+    private void printReportHeader(String title) {
+        System.out.println();
+        System.out.println(reportLine());
+        System.out.println(centeredReportTitle(title));
+        System.out.println(reportLine());
+    }
+
+    private void printBookingTable(Booking[] bookings) {
+        System.out.printf("%-10s %-20s %-7s %-11s %-11s %-12s%n",
+                "CONFIRM NO", "GUEST", "ROOM", "CHECK-IN", "CHECK-OUT", "STATUS");
+        System.out.println(reportLine());
+        for (Booking booking : bookings) {
+            System.out.printf("%-10s %-20.20s %-7s %-11s %-11s %-12s%n",
+                    booking.getConfirmationNo(), booking.getGuest().getName(),
+                    booking.getRoom().getRoomNo(), booking.getCheckInDate(),
+                    booking.getCheckOutDate(), booking.getBookingStatus());
+        }
+    }
+
     // ───────────────────── Main Menu ─────────────────────
 
     public void run() {
@@ -178,10 +243,14 @@ public class BookingUI {
                     break;
 
                 case "3":
-                    handleViewReport();
+                    handleViewAvailableRooms();
                     break;
 
                 case "4":
+                    handleViewReport();
+                    break;
+
+                case "0":
                     running = false;
 
                     System.out.println(
@@ -192,7 +261,7 @@ public class BookingUI {
                 default:
                     System.out.println(
                             "\nInvalid option. "
-                            + "Please enter 1 to 4.\n"
+                            + "Please enter 0 to 4.\n"
                     );
             }
         }
@@ -210,10 +279,11 @@ public class BookingUI {
                 + "------------------------------------------------------------------------------\n"
                 + "                   1. Walk-In Registration                                     \n"
                 + "                   2. Standard Booking                                         \n"
-                + "                   3. View Report                                              \n"
-                + "                   4. Back to Main Menu                                        \n"
+                + "                   3. Available Room Overview                                  \n"
+                + "                   4. View Report                                              \n"
+                + "                   0. Return to Main Menu                                      \n"
                 + "------------------------------------------------------------------------------\n"
-                + "Enter 1 - 4 to select an option: "
+                + "Enter your choice: "
         );
     }
 
@@ -226,7 +296,8 @@ public class BookingUI {
                 new WalkInRegistrationUI(
                         guestController,
                         roomController,
-                        bookingController
+                        bookingController,
+                        scanner
                 );
 
         walkInRegistrationUI.run();
@@ -243,16 +314,16 @@ public class BookingUI {
                     + "                   1. Add Booking                                             \n"
                     + "                   2. Modify Booking                                          \n"
                     + "                   3. Cancel Booking                                          \n"
-                    + "                   4. Back                                                     \n"
+                    + "                   0. Back                                                     \n"
                     + "------------------------------------------------------------------------------\n"
-                    + "Enter 1 - 4 to select an option: ");
+                    + "Enter your choice: ");
             switch (scanner.nextLine().trim()) {
                 case "1": addStandardBooking(); break;
                 case "2": modifyStandardBooking(); break;
                 case "3": cancelStandardBooking(); break;
-                case "4": running = false; break;
+                case "0": running = false; break;
                 default:
-                    System.out.println("Invalid option. Please enter 1 to 4.");
+                    System.out.println("Invalid option. Please enter 0 to 3.");
                     pressEnterToContinue();
             }
         }
@@ -265,13 +336,22 @@ public class BookingUI {
                 + "                                 ADD BOOKING                                  \n"
                 + "------------------------------------------------------------------------------\n");
         String guestId = guestController.generateNextGuestId();
-        System.out.println("Generated Guest ID           : " + guestId);
-        String guestName = readValidGuestName("Guest Name                  : ");
-        String guestContact = readValidGuestContact("Guest Contact               : ");
+        System.out.println(fieldPrompt("Generated Guest ID") + guestId);
+        String guestName = readValidGuestName(fieldPrompt("Guest Name"));
+        String guestContact = readValidGuestContact(fieldPrompt("Guest Contact"));
         String roomNo = readRoomNo();
-        LocalDate checkIn = readCheckInDate("Check-in date (yyyy-mm-dd)  : ");
-        LocalDate checkOut = readCheckOutDate(
-                "Check-out date (yyyy-mm-dd) : ", checkIn);
+        LocalDate checkIn;
+        LocalDate checkOut;
+        while (true) {
+            checkIn = readCheckInDate(fieldPrompt("Check-in date (yyyy-mm-dd)"));
+            checkOut = readCheckOutDate(
+                    fieldPrompt("Check-out date (yyyy-mm-dd)"), checkIn);
+            String dateError = bookingController.validateStandardBookingDates(
+                    roomNo, checkIn, checkOut);
+            if (dateError == null) break;
+            System.out.println("\n" + dateError);
+            System.out.println("Please enter a different check-in and check-out date.\n");
+        }
         printResult(bookingController.addStandardBookingForNewGuest(
                 guestId, guestName, guestContact, roomNo, checkIn, checkOut));
         pressEnterToContinue();
@@ -284,10 +364,21 @@ public class BookingUI {
                 + "                           MODIFY STANDARD BOOKING                            \n"
                 + "------------------------------------------------------------------------------\n");
         String confirmationNo = readStandardConfirmationNo();
-        String guestId = readGuestId();
-        String roomNo = readRoomNo();
-        LocalDate checkIn = readCheckInDate("New check-in (yyyy-mm-dd)    : ");
-        LocalDate checkOut = readDate("New check-out (yyyy-mm-dd)   : ");
+        Booking existing = bookingController.findByKey(confirmationNo);
+        if (existing == null || existing.getBookingType() != Entity.BookingType.STANDARD) {
+            System.out.println("Booking not found or is not a standard booking.");
+            pressEnterToContinue();
+            return;
+        }
+        System.out.println(fieldPrompt("Current guest ID") + existing.getGuestId());
+        System.out.println(fieldPrompt("Current room") + existing.getRoomNo());
+        System.out.println(fieldPrompt("Current dates") + existing.getCheckInDate()
+                + " to " + existing.getCheckOutDate());
+        System.out.println("Press ENTER to keep each current value.");
+        String guestId = readOptionalGuestId(existing.getGuestId());
+        String roomNo = readOptionalRoomNo(existing.getRoomNo());
+        LocalDate checkIn = readOptionalCheckInDate(existing.getCheckInDate());
+        LocalDate checkOut = readOptionalCheckOutDate(existing.getCheckOutDate(), checkIn);
         printResult(bookingController.modifyStandardBooking(
                 confirmationNo, guestId, roomNo, checkIn, checkOut));
         pressEnterToContinue();
@@ -300,7 +391,7 @@ public class BookingUI {
                 + "                           CANCEL STANDARD BOOKING                            \n"
                 + "------------------------------------------------------------------------------\n");
         String confirmationNo = readStandardConfirmationNo();
-        System.out.print("Confirm cancellation (Y/N)   : ");
+        System.out.print(fieldPrompt("Confirm cancellation (Y/N)"));
         if (scanner.nextLine().trim().equalsIgnoreCase("Y"))
             printResult(bookingController.cancelStandardBooking(confirmationNo));
         else System.out.println("Cancellation aborted.");
@@ -309,10 +400,82 @@ public class BookingUI {
 
     private String readGuestId() {
         while (true) {
-            System.out.print("Existing Guest ID            : ");
+            System.out.print(fieldPrompt("Existing Guest ID"));
             String guestId = scanner.nextLine().trim();
             if (bookingController.guestExists(guestId)) return guestId;
             System.out.println("Guest not found.");
+        }
+    }
+
+    private void handleViewAvailableRooms() {
+        clearScreen();
+        printBanner(BANNER_AVAILABLE_ROOM_OVERVIEW);
+        System.out.print("\n------------------------------------------------------------------------------\n"
+                + "                          AVAILABLE ROOM OVERVIEW                             \n"
+                + "------------------------------------------------------------------------------\n");
+
+        String[] rows = bookingController.getAvailableRoomRows();
+
+        System.out.println();
+        if (rows.length == 0) {
+            System.out.println("No rooms currently have Available status.");
+        } else {
+            System.out.printf("%-10s %-12s %-18s%n",
+                    "Room No.", "Room Type", "Current Status");
+            System.out.println("------------------------------------------");
+            for (String row : rows) System.out.println(row);
+            System.out.println("\n" + fieldPrompt("Total available rooms") + rows.length);
+        }
+        pressEnterToContinue();
+    }
+
+    private String readOptionalGuestId(String currentGuestId) {
+        while (true) {
+            System.out.print(fieldPrompt("New Guest ID"));
+            String guestId = scanner.nextLine().trim();
+            if (guestId.isEmpty()) return currentGuestId;
+            if (bookingController.guestExists(guestId)) return guestId;
+            System.out.println("Guest not found.");
+        }
+    }
+
+    private String readOptionalRoomNo(String currentRoomNo) {
+        while (true) {
+            System.out.print(fieldPrompt("New Room No"));
+            String roomNo = scanner.nextLine().trim();
+            if (roomNo.isEmpty()) return currentRoomNo;
+            if (bookingController.roomExists(roomNo)) return roomNo;
+            System.out.println("Room not found.");
+        }
+    }
+
+    private LocalDate readOptionalCheckInDate(LocalDate currentDate) {
+        while (true) {
+            LocalDate date = readOptionalDateValue(
+                    fieldPrompt("New check-in (yyyy-mm-dd)"), currentDate);
+            if (!date.isBefore(LocalDate.now())) return date;
+            System.out.println("Check-in date cannot be in the past.");
+        }
+    }
+
+    private LocalDate readOptionalCheckOutDate(LocalDate currentDate, LocalDate checkIn) {
+        while (true) {
+            LocalDate date = readOptionalDateValue(
+                    fieldPrompt("New check-out (yyyy-mm-dd)"), currentDate);
+            if (date.isAfter(checkIn)) return date;
+            System.out.println("Check-out date must be after check-in date.");
+        }
+    }
+
+    private LocalDate readOptionalDateValue(String prompt, LocalDate currentDate) {
+        while (true) {
+            System.out.print(prompt);
+            String value = scanner.nextLine().trim();
+            if (value.isEmpty()) return currentDate;
+            try { return LocalDate.parse(value); }
+            catch (DateTimeParseException e) {
+                System.out.println("Invalid date. Use yyyy-mm-dd or press ENTER to keep it.");
+            }
         }
     }
 
@@ -347,7 +510,7 @@ public class BookingUI {
 
     private String readRoomNo() {
         while (true) {
-            System.out.print("Room No                      : ");
+            System.out.print(fieldPrompt("Room No"));
             String roomNo = scanner.nextLine().trim();
             if (bookingController.roomExists(roomNo)) return roomNo;
             System.out.println("Room not found.");
@@ -394,16 +557,16 @@ public class BookingUI {
 
     private String readStandardConfirmationNo() {
         while (true) {
-            System.out.print("Confirmation No (SB######)   : ");
-            String value = scanner.nextLine().trim().toUpperCase();
+            System.out.print(fieldPrompt("Confirmation No (8 digits)"));
+            String value = scanner.nextLine().trim();
             if (bookingController.isValidStandardConfirmationNo(value)) return value;
-            System.out.println("Invalid format. Example: SB000001.");
+            System.out.println("Invalid format. Example: 00000001.");
         }
     }
 
     private String readReportStatus() {
         while (true) {
-            System.out.print("Booking status              : ");
+            System.out.print(fieldPrompt("Booking status"));
             String status = scanner.nextLine().trim();
             if (status.isEmpty() || bookingController.validateReportFilters(status, null, null) == null)
                 return status;
@@ -413,8 +576,8 @@ public class BookingUI {
 
     private LocalDate[] readReportDateRange() {
         while (true) {
-            LocalDate from = readOptionalDate("Check-in from (yyyy-mm-dd) : ");
-            LocalDate to = readOptionalDate("Check-in to (yyyy-mm-dd)   : ");
+            LocalDate from = readOptionalDate(fieldPrompt("Check-in from (yyyy-mm-dd)"));
+            LocalDate to = readOptionalDate(fieldPrompt("Check-in to (yyyy-mm-dd)"));
             String error = bookingController.validateReportFilters("", from, to);
             if (error == null) return new LocalDate[]{from, to};
             System.out.println(error);
@@ -437,7 +600,7 @@ public class BookingUI {
                     + "                   1. Waiting List Report                                     \n"
                     + "                   2. Registration Report                                     \n"
                     + "                   3. Standard Booking Report                                 \n"
-                    + "                   4. Back                                                     \n"
+                    + "                   0. Back                                                     \n"
                     + "------------------------------------------------------------------------------\n"
                     + "Enter 1 - 4 to select an option: ");
 
@@ -451,7 +614,7 @@ public class BookingUI {
                 case "3":
                     handleStandardBookingReport();
                     break;
-                case "4":
+                case "0":
                     running = false;
                     break;
                 default:
@@ -477,31 +640,20 @@ public class BookingUI {
                 );
 
         System.out.println("Leave filters blank to include all waiting guests.");
-        System.out.print("Guest name or ID            : ");
+        System.out.print(fieldPrompt("Guest name or ID"));
         String guestKeyword = scanner.nextLine().trim();
-        System.out.print("Contact number contains     : ");
+        System.out.print(fieldPrompt("Contact number contains"));
         String contactKeyword = scanner.nextLine().trim();
 
-        String[] results = walkInController.getWaitingListReportRows(
+        Guest[] results = walkInController.getWaitingListReport(
                 guestKeyword, contactKeyword);
 
-        System.out.println(
-                "\n=========== WAITING LIST REPORT ==========="
-        );
-
-        System.out.println(
-                "Total waiting : "
-                + results.length
-                + " guest(s)"
-        );
-
-        System.out.println(
-                "(sorted alphabetically by name)"
-        );
-
-        System.out.println(
-                "---------------------------------------------"
-        );
+        printReportHeader("WAITING LIST REPORT");
+        System.out.println("Total waiting: " + results.length + " guest(s)");
+        System.out.println("Sorted alphabetically by name");
+        System.out.println();
+        System.out.printf("%-4s %-10s %-30s %-18s%n", "NO.", "GUEST ID", "NAME", "CONTACT");
+        System.out.println(reportLine());
 
         if (results.length == 0) {
 
@@ -511,12 +663,14 @@ public class BookingUI {
 
         } else {
 
-            for (String row : results) System.out.println(row);
+            for (int i = 0; i < results.length; i++) {
+                Guest guest = results[i];
+                System.out.printf("%-4d %-10s %-30.30s %-18s%n", i + 1,
+                        guest.getGuestId(), guest.getName(), guest.getContact());
+            }
         }
 
-        System.out.println(
-                "=============================================\n"
-        );
+        System.out.println(reportLine());
 
         pressEnterToContinue();
     }
@@ -534,29 +688,16 @@ public class BookingUI {
         LocalDate[] dateRange = readReportDateRange();
         LocalDate fromDate = dateRange[0];
         LocalDate toDate = dateRange[1];
-        System.out.print("Guest name or ID            : ");
+        System.out.print(fieldPrompt("Guest name or ID"));
         String guestKeyword = scanner.nextLine().trim();
 
-        String[] results = bookingController.getWalkInRegistrationReportRows(
+        Booking[] results = bookingController.getWalkInRegistrationReport(
                 status, fromDate, toDate, guestKeyword);
 
-        System.out.println(
-                "\n=========== REGISTRATION REPORT ==========="
-        );
-
-        System.out.println(
-                "Total processed walk-ins : "
-                + results.length
-                + " booking(s)"
-        );
-
-        System.out.println(
-                "(sorted by confirmation number)"
-        );
-
-        System.out.println(
-                "---------------------------------------------"
-        );
+        printReportHeader("REGISTRATION REPORT");
+        System.out.println("Total processed walk-ins: " + results.length + " booking(s)");
+        System.out.println("Sorted by confirmation number");
+        System.out.println();
 
         if (results.length == 0) {
 
@@ -567,12 +708,10 @@ public class BookingUI {
 
         } else {
 
-            for (String row : results) System.out.println(row);
+            printBookingTable(results);
         }
 
-        System.out.println(
-                "=============================================\n"
-        );
+        System.out.println(reportLine());
 
         pressEnterToContinue();
     }
@@ -586,24 +725,24 @@ public class BookingUI {
         LocalDate[] dateRange = readReportDateRange();
         LocalDate fromDate = dateRange[0];
         LocalDate toDate = dateRange[1];
-        System.out.print("Guest name or ID            : ");
+        System.out.print(fieldPrompt("Guest name or ID"));
         String guestKeyword = scanner.nextLine().trim();
 
-        String[] results = bookingController.getStandardBookingReportRows(
+        Booking[] results = bookingController.getStandardBookingReport(
                 status, fromDate, toDate, guestKeyword);
 
-        System.out.println("\n================ STANDARD BOOKING REPORT ================");
+        printReportHeader("STANDARD BOOKING REPORT");
         System.out.println("Total standard bookings: " + results.length + " booking(s)");
-        System.out.println("(filtered by status/date/guest; sorted by confirmation number)");
-        System.out.println("---------------------------------------------------------");
+        System.out.println("Filtered by status/date/guest; sorted by confirmation number");
+        System.out.println();
 
         if (results.length == 0) {
             System.out.println("No standard bookings match the selected filters.");
         } else {
-            for (String row : results) System.out.println(row);
+            printBookingTable(results);
         }
 
-        System.out.println("=========================================================\n");
+        System.out.println(reportLine());
         pressEnterToContinue();
     }
 }
