@@ -12,17 +12,20 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
+ *
+ * @author Chong Zhi Yi
+ */
+
+/**
  * Front Desk keeps its OWN HashTable<String, Booking> as a fast search index
  * for confirmation-number lookups, built once from BookingController's shared
  * data.
  * Front Desk's job is specifically fast repeated lookup by confirmation
  * number, so it builds a HashTable index on top instead of duplicating data:
  * the index holds references to the SAME Booking objects BookingController
- * holds, so a status change made elsewhere (e.g. by PaymentController) is
- * visible through this index immediately, with no re-sync needed.
+ * holds, so a status change made elsewhere is visible through this index 
+ * immediately, with no re-sync needed.
  *
- * If another module adds/removes bookings during the same run (e.g. Walk-in
- * Registration), call refreshIndex() before relying on this index again.
  */
 public class FrontDeskController {
 

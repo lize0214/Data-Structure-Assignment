@@ -14,6 +14,11 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 
+/**
+ *
+ * @author Chong Zhi Yi
+ */
+
 public class FrontDeskUI {
 
     private final FrontDeskController controller;

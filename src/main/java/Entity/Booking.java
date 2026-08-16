@@ -57,9 +57,6 @@ public class Booking {
     public String getBookingStatus() { return bookingStatus; }
     public void setBookingStatus(String bookingStatus) { this.bookingStatus = bookingStatus; }
 
-    // 注意：这里只能拿到guestId和roomNo，不能直接生成完整Booking对象
-    // 需要在Controller层查到对应的Guest和Room对象后，再手动组装
-    // 格式: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus
     public static Booking fromCsvLine(String line, Guest guest, Room room) {
         String[] parts = line.split(",");
         if (parts.length != 6) {
