@@ -1,5 +1,10 @@
 package ADT;
 
+/**
+ *
+ * @author Chong Zhi Yi
+ */
+
 public class HashTable<K, V> implements HashTableInterface<K, V> {
 
     private static final int DEFAULT_CAPACITY = 101;

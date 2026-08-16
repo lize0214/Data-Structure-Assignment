@@ -4,8 +4,8 @@
 102,Single,120.0,Occupied
 103,Deluxe,250.0,Dirty
 104,Deluxe,250.0,CleaningInProgress
-105,Suite,480.0,Inspected
-106,Suite,480.0,ReadyForCheckIn
+105,Suite,480.0,Dirty
+106,Suite,480.0,Dirty
 201,Single,120.0,Occupied
 202,Deluxe,250.0,Occupied
 203,Suite,480.0,Occupied
