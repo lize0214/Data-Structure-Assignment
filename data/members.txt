@@ -7,3 +7,5 @@ M006,Siti Zubaidah,Gold,3100
 M007,Chong Kah Meng,Platinum,21000
 M008,Priya Devi,Silver,600
 0,uuuu,Silver,0
+fewfge,bebeberb,Silver,50
+G1234,afg,Gold,1000
