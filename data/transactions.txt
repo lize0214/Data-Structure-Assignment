@@ -8,3 +8,5 @@ TXN0007,M002,-2500,REDEEM,Redeemed Spa Voucher,2026-07-20
 TXN0008,M001,-5000,REDEEM,Redeemed Executive Lounge Access,2026-07-22
 TXN0009,M003,-1500,REDEEM,Redeemed Dinner for Two,2026-07-25
 TXN0010,M001,-500,REDEEM,Redeemed Free Breakfast,2026-07-28
+TXN0011,fewfge,50,REGISTER,Registration Starting Points,2026-08-16
+TXN0012,G1234,1000,REGISTER,Registration Starting Points,2026-08-16

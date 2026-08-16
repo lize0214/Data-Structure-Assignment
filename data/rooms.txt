@@ -12,3 +12,4 @@
 205,Deluxe,260.0,Dirty
 206,Deluxe,260.0,Occupied
 207,Deluxe,260.0,Dirty
+208,Deluxe,260.0,Occupied
