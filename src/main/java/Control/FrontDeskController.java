@@ -139,8 +139,16 @@ public class FrontDeskController {
         }
 
         Booking booking = searchIndex.search(confNo.trim());
+
         if (booking == null) {
             return ControllerResult.fail("No booking found for confirmation number: " + confNo);
+        }
+
+        // Ensure the booking's room information is available
+        if (booking.getRoom() == null) {
+            return ControllerResult.fail(
+                "Room information for this booking could not be found."
+            );
         }
 
         long nights = nightsBetween(booking);
@@ -282,8 +290,14 @@ public class FrontDeskController {
         if (confNo == null) {
             return null;
         }
+
         Booking booking = searchIndex.search(confNo.trim());
-        return booking == null ? null : booking.getRoom().getRoomNo();
+
+        if (booking == null || booking.getRoom() == null) {
+            return null;
+        }
+
+        return booking.getRoom().getRoomNo();
     }
 
     /**
@@ -875,6 +889,10 @@ public class FrontDeskController {
     }
 
     static double calculateTotal(Booking booking) {
+        if (booking == null || booking.getRoom() == null) {
+            return 0.0;
+        }
+
         return booking.getRoom().getPrice() * nightsBetween(booking);
     }
 

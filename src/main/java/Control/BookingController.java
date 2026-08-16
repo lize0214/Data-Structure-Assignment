@@ -39,6 +39,23 @@ public class BookingController extends AbstractEntityController<Booking, String>
         Guest guest = guestController.findByKey(guestId);
         Room room = roomController.findByKey(roomNo);
 
+        if ("204".equals(roomNo)) {
+    System.out.println("\n========== DEBUG ==========");
+    System.out.println("Looking for room: " + roomNo);
+    System.out.println("Total rooms loaded: "
+            + roomController.getAll().size());
+
+    for (int i = 1; i <= roomController.getAll().size(); i++) {
+        Room r = roomController.getAll().getEntry(i);
+        System.out.println(
+                "Loaded room: [" + r.getRoomNo() + "]"
+        );
+    }
+
+    System.out.println("findByKey result: " + room);
+    System.out.println("===========================\n");
+}
+
         return Booking.fromCsvLine(line, guest, room);
     }
 
