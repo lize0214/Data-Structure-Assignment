@@ -111,16 +111,6 @@ public class MainMenuUI {
         LoyaltyUI loyaltyUI = new LoyaltyUI();
         loyaltyUI.run();
     }
-
-    private void openHousekeepingMenu() {
-        HousekeepingUI housekeepingUI = new HousekeepingUI();
-        housekeepingUI.run();
-    }
-
-    private void openReportMenu() {
-        ReportUI reportUI = new ReportUI();
-        reportUI.run();
-    }
     
     private void pressEnterToContinue() {
         System.out.print("\nPress ENTER to continue...");

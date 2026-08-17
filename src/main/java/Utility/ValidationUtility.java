@@ -4,7 +4,7 @@ import ADT.ArrayList;
 import ADT.ListInterface;
 import java.time.LocalDate;
 /**
- * Common validation utility — returns null on success, error message string on failure.
+ * @author Chua Li Ze
  */
 public class ValidationUtility {
 

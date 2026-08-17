@@ -1,6 +1,8 @@
 package Entity;
 
-// Author: [你的名字]
+/**
+ * @author Chua Li Ze
+ */
 public class Room {
     private String roomNo;
     private String roomType;

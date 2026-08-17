@@ -3,15 +3,7 @@ package Entity;
 import java.time.LocalDateTime;
 
 /**
- * Represents a VIP member waiting in the priority room allocation queue.
- * <p>
- * Implements {@link Comparable} to define the sorting contract for the
- * max-heap priority queue:
- * <ol>
- *   <li>Higher tier priority first (Platinum=4, Diamond=3, Elite=2)</li>
- *   <li>Within the same tier, earlier registration time wins</li>
- * </ol>
- * </p>
+ * @author Chua Li Ze
  */
 public class VIPQueueEntry implements Comparable<VIPQueueEntry> {
 

@@ -9,6 +9,10 @@ import ADT.ListInterface;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * @author Chua Li Ze
+ */
+
 public class FileUtility {
 
     // Read all lines from a file.

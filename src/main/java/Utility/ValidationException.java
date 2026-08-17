@@ -1,7 +1,7 @@
 package Utility;
 
 /**
- * Thrown by ValidationUtility when input validation fails.
+ * @author Chua Li Ze
  */
 public class ValidationException extends RuntimeException {
     public ValidationException(String message) {
