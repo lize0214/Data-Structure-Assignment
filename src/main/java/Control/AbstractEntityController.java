@@ -4,7 +4,9 @@ import ADT.ListInterface;
 import ADT.ArrayList;
 import Utility.ControllerResult;
 import Utility.FileUtility;
-
+/**
+ * @author Chua Li Ze
+ */
 public abstract class AbstractEntityController<T, K> {
     protected ListInterface<T> list;
     protected final String filePath;

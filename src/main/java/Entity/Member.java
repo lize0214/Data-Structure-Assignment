@@ -4,7 +4,9 @@
  */
 package Entity;
 
-// Author: [你的名字]
+/**
+ * @author Chua Li Ze
+ */
 public class Member {
     private String memberId;
     private String name;

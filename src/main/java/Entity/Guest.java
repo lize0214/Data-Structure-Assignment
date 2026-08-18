@@ -3,8 +3,9 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package Entity;
-
-// Author: [你的名字]
+/**
+ * @author Chua Li Ze
+ */
 public class Guest {
     private String guestId;
     private String name;

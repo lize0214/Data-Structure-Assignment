@@ -1,7 +1,7 @@
 package Utility;
 
 /**
- * Unified API response wrapper for all Controllers.
+ * @author Chua Li Ze
  */
 public class ControllerResult {
     private final boolean ok;
