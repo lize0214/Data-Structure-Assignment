@@ -1,4 +1,4 @@
-package Boundery;
+package Boundary;
 
 import ADT.ListInterface;
 import Control.LoyaltyController;

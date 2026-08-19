@@ -9,22 +9,29 @@ import Utility.ValidationUtility;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+/**
+ * @author Chua Li Ze
+ */
 
 /**
  * Controller for VIP priority room allocation using a max-heap-based
  * priority queue (non-linear ADT).
- * <p>
  * High-tier members (Elite, Diamond, Platinum) bypass the standard
  * FIFO allocation queue. The highest-tier member always receives
  * the next available room. Within the same tier, earlier registration
  * time takes precedence.
- * </p>
  */
 public class VIPAllocationController {
 
     private static final String VIP_QUEUE_FILE = "data/vip_queue.txt";
+    private static final String VIP_ALLOCATION_HISTORY_FILE = "data/vip_allocation_history.txt";
+    private static final String[] ROOM_TYPES = {"Single", "Deluxe", "Suite", "Presidential"};
 
     // Room statuses considered allocatable
     private static final String[] ALLOCATABLE_STATUSES = {"Available", "ReadyForCheckIn", "Inspected"};
@@ -34,6 +41,7 @@ public class VIPAllocationController {
     private final RoomController roomController;
     private final GuestController guestController;
     private final BookingController bookingController;
+    private final List<VIPAllocationRecord> allocationHistory;
 
     /**
      * Constructs the VIP allocation controller with all required dependencies.
@@ -52,7 +60,9 @@ public class VIPAllocationController {
         this.guestController = guestController;
         this.bookingController = bookingController;
         this.vipQueue = new HeapPriorityQueue<>();
+        this.allocationHistory = new ArrayList<>();
         loadQueueFromFile();
+        loadAllocationHistoryFromFile();
     }
 
     // ───────────────────── Enqueue ─────────────────────
@@ -172,7 +182,7 @@ public class VIPAllocationController {
         String confirmationNo = generateConfirmationNo();
         LocalDate today = LocalDate.now();
         Booking booking = new Booking(confirmationNo, guest, availableRoom,
-                today, today.plusDays(1), "CheckedIn");
+                today, today.plusDays(1), "CheckedIn", BookingType.STANDARD);
         ControllerResult bookingResult = bookingController.add(booking);
         if (!bookingResult.isOk()) {
             // Rollback room status
@@ -180,6 +190,23 @@ public class VIPAllocationController {
             vipQueue.enqueue(entry);
             return ControllerResult.fail("Failed to create booking: " + bookingResult.getMessage());
         }
+
+        LocalDateTime allocationTime = LocalDateTime.now();
+        boolean preferenceMatched = entry.getPreferredRoomType() != null
+                && entry.getPreferredRoomType().equalsIgnoreCase(availableRoom.getRoomType());
+        VIPAllocationRecord historyRecord = new VIPAllocationRecord(
+                confirmationNo,
+                entry.getMemberId(),
+                entry.getMemberTier(),
+                entry.getPreferredRoomType(),
+                availableRoom.getRoomNo(),
+                availableRoom.getRoomType(),
+                entry.getRegistrationTime(),
+                allocationTime,
+                waitingMinutesBetween(entry.getRegistrationTime(), allocationTime),
+                preferenceMatched);
+        allocationHistory.add(historyRecord);
+        FileUtility.appendLine(VIP_ALLOCATION_HISTORY_FILE, historyRecord.toCsvLine());
 
         saveQueueToFile();
 
@@ -335,6 +362,98 @@ public class VIPAllocationController {
         return vipQueue.isEmpty();
     }
 
+    // ───────────────────── Reports ─────────────────────
+
+    /** Builds a point-in-time report of VIP demand and allocatable room supply. */
+    public VIPQueueDemandReport getQueueDemandReport() {
+        LocalDateTime generatedAt = LocalDateTime.now();
+        List<VIPQueueEntry> queue = viewQueue();
+        List<VIPQueueDemandReport.QueueRow> rows = new ArrayList<>();
+        Map<String, Integer> tierCounts = createTierCountMap();
+        Map<String, Integer> demandCounts = createRoomTypeCountMap(true);
+        Map<String, Integer> availableCounts = createRoomTypeCountMap(true);
+
+        long totalWaitingMinutes = 0;
+        long longestWaitingMinutes = 0;
+        int rank = 1;
+        for (VIPQueueEntry entry : queue) {
+            Member member = memberController.findByKey(entry.getMemberId());
+            String memberName = member == null ? "Unknown" : member.getName();
+            String preferredType = canonicalRoomType(entry.getPreferredRoomType());
+            long waitingMinutes = waitingMinutesBetween(entry.getRegistrationTime(), generatedAt);
+
+            rows.add(new VIPQueueDemandReport.QueueRow(
+                    rank++, entry.getMemberId(), memberName, entry.getMemberTier(),
+                    entry.getTierPriority(), preferredType, entry.getRegistrationTime(), waitingMinutes));
+            incrementCount(tierCounts, entry.getMemberTier());
+            incrementCount(demandCounts, preferredType);
+            totalWaitingMinutes += waitingMinutes;
+            longestWaitingMinutes = Math.max(longestWaitingMinutes, waitingMinutes);
+        }
+
+        int totalAvailable = 0;
+        for (Room room : viewAvailableRooms()) {
+            incrementCount(availableCounts, canonicalRoomType(room.getRoomType()));
+            totalAvailable++;
+        }
+        availableCounts.put("Any", totalAvailable);
+
+        List<VIPQueueDemandReport.RoomDemandRow> demandRows = new ArrayList<>();
+        for (String roomType : demandCounts.keySet()) {
+            int demand = demandCounts.get(roomType);
+            int available = availableCounts.getOrDefault(roomType, 0);
+            demandRows.add(new VIPQueueDemandReport.RoomDemandRow(
+                    roomType, demand, available, Math.max(0, demand - available)));
+        }
+
+        double averageWaitingMinutes = rows.isEmpty()
+                ? 0.0 : totalWaitingMinutes / (double) rows.size();
+        return new VIPQueueDemandReport(generatedAt, rows, demandRows, tierCounts,
+                averageWaitingMinutes, longestWaitingMinutes);
+    }
+
+    /**
+     * Builds a historical allocation report. Both date boundaries are inclusive;
+     * either may be null to leave that side of the range open.
+     */
+    public VIPAllocationPerformanceReport getAllocationPerformanceReport(
+            LocalDate fromDate, LocalDate toDate) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException("Report start date cannot be after the end date.");
+        }
+
+        List<VIPAllocationRecord> filtered = new ArrayList<>();
+        Map<String, Integer> tierCounts = createTierCountMap();
+        Map<String, Integer> roomTypeCounts = createRoomTypeCountMap(false);
+        long totalWaitingMinutes = 0;
+        long longestWaitingMinutes = 0;
+        int preferenceRequestCount = 0;
+        int preferenceMatchCount = 0;
+
+        for (VIPAllocationRecord record : allocationHistory) {
+            LocalDate allocationDate = record.getAllocationTime().toLocalDate();
+            if (fromDate != null && allocationDate.isBefore(fromDate)) continue;
+            if (toDate != null && allocationDate.isAfter(toDate)) continue;
+
+            filtered.add(record);
+            incrementCount(tierCounts, record.getMemberTier());
+            incrementCount(roomTypeCounts, canonicalRoomType(record.getAllocatedRoomType()));
+            totalWaitingMinutes += record.getWaitingMinutes();
+            longestWaitingMinutes = Math.max(longestWaitingMinutes, record.getWaitingMinutes());
+            if (record.hasRoomPreference()) {
+                preferenceRequestCount++;
+                if (record.isPreferenceMatched()) preferenceMatchCount++;
+            }
+        }
+
+        filtered.sort(Comparator.comparing(VIPAllocationRecord::getAllocationTime).reversed());
+        double averageWaitingMinutes = filtered.isEmpty()
+                ? 0.0 : totalWaitingMinutes / (double) filtered.size();
+        return new VIPAllocationPerformanceReport(fromDate, toDate, filtered,
+                tierCounts, roomTypeCounts, averageWaitingMinutes, longestWaitingMinutes,
+                preferenceRequestCount, preferenceMatchCount);
+    }
+
     // ───────────────────── File I/O ─────────────────────
 
     /**
@@ -354,6 +473,18 @@ public class VIPAllocationController {
                 } catch (Exception e) {
                     System.out.println("Warning: skipping invalid VIP queue line: " + line);
                 }
+            }
+        }
+    }
+
+    /** Loads successful VIP allocation audit records, skipping malformed rows. */
+    private void loadAllocationHistoryFromFile() {
+        if (!FileUtility.fileExists(VIP_ALLOCATION_HISTORY_FILE)) return;
+        for (String line : FileUtility.readLines(VIP_ALLOCATION_HISTORY_FILE)) {
+            try {
+                allocationHistory.add(VIPAllocationRecord.fromCsvLine(line));
+            } catch (RuntimeException e) {
+                System.out.println("Warning: skipping invalid VIP allocation history line: " + line);
             }
         }
     }
@@ -468,6 +599,38 @@ public class VIPAllocationController {
      * Generates a unique 8-digit confirmation number for a booking.
      */
     private String generateConfirmationNo() {
-        return String.format("%08d", (int) (Math.random() * 100_000_000));
+        return bookingController.nextNumericConfirmationNo();
+    }
+
+    private long waitingMinutesBetween(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null || start.isAfter(end)) return 0;
+        return Duration.between(start, end).toMinutes();
+    }
+
+    private Map<String, Integer> createTierCountMap() {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("Platinum", 0);
+        counts.put("Diamond", 0);
+        counts.put("Elite", 0);
+        return counts;
+    }
+
+    private Map<String, Integer> createRoomTypeCountMap(boolean includeAny) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (String roomType : ROOM_TYPES) counts.put(roomType, 0);
+        if (includeAny) counts.put("Any", 0);
+        return counts;
+    }
+
+    private String canonicalRoomType(String roomType) {
+        if (roomType == null || roomType.trim().isEmpty()) return "Any";
+        for (String validType : ROOM_TYPES) {
+            if (validType.equalsIgnoreCase(roomType.trim())) return validType;
+        }
+        return roomType.trim();
+    }
+
+    private void incrementCount(Map<String, Integer> counts, String key) {
+        counts.put(key, counts.getOrDefault(key, 0) + 1);
     }
 }

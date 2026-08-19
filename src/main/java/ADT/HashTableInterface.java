@@ -4,6 +4,11 @@
  */
 package ADT;
 
+/**
+ *
+ * @author Chong Zhi Yi
+ */
+
 public interface HashTableInterface<K, V> {
 
     void insert(K key, V value);

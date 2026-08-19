@@ -1,7 +1,10 @@
 package Entity;
 
 import java.time.LocalDateTime;
-
+/**
+ *
+ * @author Chong Zhi Yi
+ */
 // Shared by Front Desk (checkout billing) and Walk-in Registration (on-arrival payment)
 public class Payment {
     private String paymentId;

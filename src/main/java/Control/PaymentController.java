@@ -8,6 +8,11 @@ import Utility.ValidationUtility;
 
 import java.time.LocalDateTime;
 
+/**
+ *
+ * @author Chong Zhi Yi
+ */
+
 public class PaymentController {
 
     private static final String DEFAULT_PAYMENTS_FILE = "data/payments.txt";
@@ -127,7 +132,7 @@ public class PaymentController {
                         confNo.trim(),
                         amount,
                         method,
-                        LocalDateTime.now(),
+                        LocalDateTime.now().withNano(0),
                         "Success"
                 );
 

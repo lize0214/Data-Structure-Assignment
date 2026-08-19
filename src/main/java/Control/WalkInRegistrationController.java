@@ -1,22 +1,25 @@
-// Author: [Your Name]
 package Control;
 
 import ADT.QueueInterface;
+import ADT.QueueIterator;
 import ADT.CircularArrayQueue;
 import ADT.ListInterface;
 import Entity.Guest;
 import Entity.Room;
 import Entity.Booking;
+import Entity.BookingType;
 import Utility.ControllerResult;
 import Utility.ValidationUtility;
 import Utility.FileUtility;
 
 import java.time.LocalDate;
-import java.util.Iterator;
-
+/**
+ * @author Chin Yik Heng
+ */
 public class WalkInRegistrationController {
 
     private static final String ROOM_AVAILABLE_STATUS = "Available";
+    private static final String ROOM_READY_STATUS = "ReadyForCheckIn";
     private static final String ROOM_OCCUPIED_STATUS = "Occupied";
     private static final String BOOKING_STATUS_CONFIRMED = "Confirmed";
     private static final String QUEUE_DATA_FILE = "data/walkins.txt";
@@ -25,8 +28,6 @@ public class WalkInRegistrationController {
     private final GuestController guestController;
     private final RoomController roomController;
     private final BookingController bookingController;
-
-    private int confirmationCounter;
 
     public WalkInRegistrationController(
             GuestController guestController,
@@ -37,9 +38,6 @@ public class WalkInRegistrationController {
         this.guestController = guestController;
         this.roomController = roomController;
         this.bookingController = bookingController;
-
-        this.confirmationCounter =
-                bookingController.getAll().size() + 1;
 
         loadQueueFromFile();
     }
@@ -57,8 +55,16 @@ public class WalkInRegistrationController {
             return ControllerResult.fail(error);
         }
 
-        // Add guest into guest records if the guest does not exist
-        if (guestController.findByKey(guest.getGuestId()) == null) {
+        QueueIterator<Guest> duplicateCheck = waitingQueue.getIterator();
+        while (duplicateCheck.hasNext()) {
+            if (duplicateCheck.next().getGuestId().equalsIgnoreCase(guest.getGuestId())) {
+                return ControllerResult.fail("Guest " + guest.getGuestId()
+                        + " is already in the walk-in queue.");
+            }
+        }
+
+        Guest existingGuest = guestController.findByKey(guest.getGuestId());
+        if (existingGuest == null) {
 
             ControllerResult addResult =
                     guestController.add(guest);
@@ -66,6 +72,13 @@ public class WalkInRegistrationController {
             if (!addResult.isOk()) {
                 return addResult;
             }
+        } else {
+            if (!existingGuest.getName().equalsIgnoreCase(guest.getName())
+                    || !existingGuest.getContact().equals(guest.getContact())) {
+                return ControllerResult.fail("Guest ID " + guest.getGuestId()
+                        + " already belongs to another guest record.");
+            }
+            guest = existingGuest;
         }
 
         waitingQueue.enqueue(guest);
@@ -77,12 +90,18 @@ public class WalkInRegistrationController {
         );
     }
 
+    public ControllerResult registerWalkIn(String guestId, String name, String contact) {
+        return registerWalkIn(new Guest(guestId, name, contact));
+    }
+
     /**
      * Processes the guest at the front of the queue.
      */
     public ControllerResult processNextGuest(
             LocalDate checkInDate,
-            LocalDate checkOutDate) {
+            LocalDate checkOutDate,
+            String preferredRoomType,
+            String selectedRoomNo) {
 
         if (waitingQueue.isEmpty()) {
             return ControllerResult.fail(
@@ -99,19 +118,19 @@ public class WalkInRegistrationController {
         if (dateError != null) {
             return ControllerResult.fail(dateError);
         }
+        if (!checkInDate.equals(LocalDate.now())) {
+            return ControllerResult.fail("A walk-in check-in date must be today.");
+        }
 
-        Guest guest = waitingQueue.dequeue();
+        Guest guest = waitingQueue.getFront();
 
-        Room availableRoom = findFirstAvailableRoom();
+        Room availableRoom = roomController.findByKey(selectedRoomNo);
 
-        if (availableRoom == null) {
-
-            // Put the guest back into the queue
-            waitingQueue.enqueue(guest);
-            saveQueueToFile();
+        if (!isRoomAvailable(selectedRoomNo, preferredRoomType,
+                checkInDate, checkOutDate)) {
 
             return ControllerResult.fail(
-                    "No room currently available. "
+                    "The selected " + preferredRoomType + " room is no longer available. "
                     + guest.getName()
                     + " remains in queue."
             );
@@ -125,32 +144,25 @@ public class WalkInRegistrationController {
                 availableRoom,
                 checkInDate,
                 checkOutDate,
-                BOOKING_STATUS_CONFIRMED
+                BOOKING_STATUS_CONFIRMED,
+                BookingType.WALK_IN
         );
 
-        ControllerResult bookingResult =
-                bookingController.add(booking);
+        String previousRoomStatus = availableRoom.getStatus();
+        ControllerResult roomResult = roomController.updateStatus(
+                availableRoom.getRoomNo(), ROOM_OCCUPIED_STATUS);
+
+        if (!roomResult.isOk()) return roomResult;
+
+        ControllerResult bookingResult = bookingController.add(booking);
 
         if (!bookingResult.isOk()) {
-
-            // Put the guest back if booking fails
-            waitingQueue.enqueue(guest);
-            saveQueueToFile();
-
+            roomController.updateStatus(availableRoom.getRoomNo(), previousRoomStatus);
             return bookingResult;
         }
 
+        waitingQueue.dequeue();
         saveQueueToFile();
-
-        ControllerResult roomResult =
-                roomController.updateStatus(
-                        availableRoom.getRoomNo(),
-                        ROOM_OCCUPIED_STATUS
-                );
-
-        if (!roomResult.isOk()) {
-            return roomResult;
-        }
 
         return ControllerResult.success(
                 "Booking " + confirmationNo
@@ -191,7 +203,7 @@ public class WalkInRegistrationController {
             Guest guest = waitingQueue.dequeue();
 
             if (!found
-                    && guest.getGuestId().equals(guestId)) {
+                    && guest.getGuestId().equalsIgnoreCase(guestId)) {
 
                 found = true;
 
@@ -235,6 +247,58 @@ public class WalkInRegistrationController {
         return waitingQueue.getFront();
     }
 
+    public String getNextGuestName() {
+        Guest guest = peekNextGuest();
+        return guest == null ? null : guest.getName();
+    }
+
+    public String[] getQueueDisplayRows() {
+        ListInterface<Guest> snapshot = viewQueue();
+        String[] rows = new String[snapshot.size()];
+        for (int i = 1; i <= snapshot.size(); i++) {
+            Guest guest = snapshot.getEntry(i);
+            rows[i - 1] = String.format("%-5d %-25s %-10s %-15s",
+                    i, guest.getName(), guest.getGuestId(), guest.getContact());
+        }
+        return rows;
+    }
+
+    /** Lists rooms matching the guest's preference and requested dates. */
+    public String[] getAvailableRoomRows(String preferredRoomType,
+            LocalDate checkInDate, LocalDate checkOutDate) {
+        ListInterface<Room> rooms = roomController.getAll();
+        int count = 0;
+        for (int i = 1; i <= rooms.size(); i++) {
+            Room room = rooms.getEntry(i);
+            if (isRoomAvailable(room.getRoomNo(), preferredRoomType,
+                    checkInDate, checkOutDate)) count++;
+        }
+
+        String[] rows = new String[count];
+        int outputIndex = 0;
+        for (int i = 1; i <= rooms.size(); i++) {
+            Room room = rooms.getEntry(i);
+            if (isRoomAvailable(room.getRoomNo(), preferredRoomType,
+                    checkInDate, checkOutDate)) {
+                rows[outputIndex++] = String.format("%-10s %-12s RM%-9.2f %-18s",
+                        room.getRoomNo(), room.getRoomType(), room.getPrice(), room.getStatus());
+            }
+        }
+        return rows;
+    }
+
+    /** Checks that a selected room still matches all walk-in requirements. */
+    public boolean isRoomAvailable(String roomNo, String preferredRoomType,
+            LocalDate checkInDate, LocalDate checkOutDate) {
+        Room room = roomController.findByKey(roomNo);
+        if (room == null || preferredRoomType == null
+                || !preferredRoomType.equalsIgnoreCase(room.getRoomType())) return false;
+        boolean ready = ROOM_AVAILABLE_STATUS.equalsIgnoreCase(room.getStatus())
+                || ROOM_READY_STATUS.equalsIgnoreCase(room.getStatus());
+        return ready && !bookingController.hasRoomConflict(room.getRoomNo(),
+                checkInDate, checkOutDate, null);
+    }
+
     /**
      * Checks whether the waiting queue is empty.
      */
@@ -250,7 +314,7 @@ public class WalkInRegistrationController {
         ListInterface<Guest> snapshot =
                 new ADT.ArrayList<>();
 
-        Iterator<Guest> iterator =
+        QueueIterator<Guest> iterator =
                 waitingQueue.getIterator();
 
         while (iterator.hasNext()) {
@@ -265,20 +329,30 @@ public class WalkInRegistrationController {
      * sorted alphabetically by guest name.
      */
     public Guest[] getWaitingListReport() {
+        return getWaitingListReport("", "");
+    }
+
+    /** Linear search by name/ID and contact, followed by selection sort by name. */
+    public Guest[] getWaitingListReport(String guestKeyword, String contactKeyword) {
 
         ListInterface<Guest> queueSnapshot =
                 viewQueue();
 
-        Guest[] guests =
-                new Guest[queueSnapshot.size()];
+        int matchCount = 0;
+        for (int i = 1; i <= queueSnapshot.size(); i++) {
+            if (matchesWaitingFilters(queueSnapshot.getEntry(i), guestKeyword, contactKeyword)) {
+                matchCount++;
+            }
+        }
 
-        // Copy guests from ListInterface into array
-        for (int i = 1;
-                i <= queueSnapshot.size();
-                i++) {
+        Guest[] guests = new Guest[matchCount];
 
-            guests[i - 1] =
-                    queueSnapshot.getEntry(i);
+        int resultIndex = 0;
+        for (int i = 1; i <= queueSnapshot.size(); i++) {
+            Guest guest = queueSnapshot.getEntry(i);
+            if (matchesWaitingFilters(guest, guestKeyword, contactKeyword)) {
+                guests[resultIndex++] = guest;
+            }
         }
 
         // Selection sort by guest name
@@ -316,28 +390,24 @@ public class WalkInRegistrationController {
         return guests;
     }
 
-    /**
-     * Finds the first available room.
-     */
-    private Room findFirstAvailableRoom() {
-
-        ListInterface<Room> rooms =
-                roomController.getAll();
-
-        for (int i = 1;
-                i <= rooms.size();
-                i++) {
-
-            Room room = rooms.getEntry(i);
-
-            if (ROOM_AVAILABLE_STATUS.equalsIgnoreCase(
-                    room.getStatus())) {
-
-                return room;
-            }
+    public String[] getWaitingListReportRows(String guestKeyword, String contactKeyword) {
+        Guest[] guests = getWaitingListReport(guestKeyword, contactKeyword);
+        String[] rows = new String[guests.length];
+        for (int i = 0; i < guests.length; i++) {
+            rows[i] = (i + 1) + ". " + guests[i].getName() + " (ID: "
+                    + guests[i].getGuestId() + ", Contact: " + guests[i].getContact() + ")";
         }
+        return rows;
+    }
 
-        return null;
+    private boolean matchesWaitingFilters(Guest guest, String guestKeyword,
+            String contactKeyword) {
+        boolean correctGuest = guestKeyword == null || guestKeyword.isEmpty()
+                || guest.getName().toLowerCase().contains(guestKeyword.toLowerCase())
+                || guest.getGuestId().equalsIgnoreCase(guestKeyword);
+        boolean correctContact = contactKeyword == null || contactKeyword.isEmpty()
+                || guest.getContact().contains(contactKeyword);
+        return correctGuest && correctContact;
     }
 
     /**
@@ -345,15 +415,7 @@ public class WalkInRegistrationController {
      */
     private String generateConfirmationNo() {
 
-        String confirmationNo =
-                "WI" + String.format(
-                        "%06d",
-                        confirmationCounter
-                );
-
-        confirmationCounter++;
-
-        return confirmationNo;
+        return bookingController.nextNumericConfirmationNo();
     }
 
     /**
@@ -390,11 +452,10 @@ public class WalkInRegistrationController {
      */
     private void saveQueueToFile() {
 
-        Iterator<Guest> iterator =
+        QueueIterator<Guest> iterator =
                 waitingQueue.getIterator();
 
-        java.util.List<String> lines =
-                new java.util.ArrayList<>();
+        ListInterface<String> lines = new ADT.ArrayList<>();
 
         while (iterator.hasNext()) {
 
@@ -402,9 +463,8 @@ public class WalkInRegistrationController {
             lines.add(guest.getGuestId());
         }
 
-        FileUtility.writeAllLines(
-                QUEUE_DATA_FILE,
-                lines.toArray(new String[0])
-        );
+        String[] output = new String[lines.size()];
+        for (int i = 1; i <= lines.size(); i++) output[i - 1] = lines.getEntry(i);
+        FileUtility.writeAllLines(QUEUE_DATA_FILE, output);
     }
 }

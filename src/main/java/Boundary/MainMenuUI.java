@@ -2,7 +2,7 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package Boundery;
+package Boundary;
 
 import java.util.Scanner;
 import Control.BookingController;
@@ -25,7 +25,10 @@ public class MainMenuUI {
         boolean running = true;
 
         while (running) {
+
+            clearScreen();
             displayMainMenu();
+
             String choice = scanner.nextLine().trim();
 
             switch (choice) {
@@ -46,24 +49,18 @@ public class MainMenuUI {
                     break;
 
                 case "5":
-                    openHousekeepingMenu();
-                    break;
-
-                case "6":
-                    openReportMenu();
-                    break;
-
-                case "7":
                     running = false;
                     System.out.println(
-                            "\nThank you for using the Hotel Management System."
+                            "\nThank you for using our Areum Resort."
                     );
                     break;
 
                 default:
                     System.out.println(
-                            "\nInvalid option. Please enter a number from 1 to 7.\n"
+                            "\nInvalid option. Please enter a number from 1 to 5."
                     );
+                    pressEnterToContinue();
+                    break;
             }
         }
 
@@ -89,11 +86,9 @@ public class MainMenuUI {
                 "                         2. Front Desk Service                                \n" +
                 "                         3. VIP Room Allocation                               \n" +
                 "                         4. Loyalty Management                                \n" +
-                "                         5. Housekeeping                                      \n" +
-                "                         6. Reports                                           \n" +
-                "                         7. Exit System                                       \n" +
+                "                         5. Exit System                                       \n" +
                 "------------------------------------------------------------------------------\n" +
-                "Enter 1 - 7 to select an option: "
+                "Enter 1 - 5 to select an option: "
         );
     }
 
@@ -116,14 +111,15 @@ public class MainMenuUI {
         LoyaltyUI loyaltyUI = new LoyaltyUI();
         loyaltyUI.run();
     }
-
-    private void openHousekeepingMenu() {
-        HousekeepingUI housekeepingUI = new HousekeepingUI();
-        housekeepingUI.run();
+    
+    private void pressEnterToContinue() {
+        System.out.print("\nPress ENTER to continue...");
+        scanner.nextLine();
     }
-
-    private void openReportMenu() {
-        ReportUI reportUI = new ReportUI();
-        reportUI.run();
+    
+    private void clearScreen() {
+        for (int i = 0; i < 40; i++) {
+            System.out.println();
+        }
     }
 }
