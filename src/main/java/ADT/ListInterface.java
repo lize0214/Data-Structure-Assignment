@@ -1,105 +1,43 @@
 package ADT;
 
 /**
- * ListInterface.java An interface for the ADT List. Entries in the list have
- * positions that begin with 1.
+ * Interface for the List ADT. Positions in the list begin with 1.
  *
  * @author Frank M. Carrano
  * @version 2.0
  */
 public interface ListInterface<T> {
-    
-  public int size();
 
-  /**
-   * Task: Adds a new entry to the end of the list. Entries currently in the
-   * list are unaffected. The list's size is increased by 1.
-   *
-   * @param newEntry the object to be added as a new entry
-   * @return true if the addition is successful, or false if the list is full
-   */
-  public boolean add(T newEntry);
+    // Returns the number of entries in the list.
+    public int size();
 
-  /**
-   * Task: Adds a new entry at a specified position within the list. Entries
-   * originally at and above the specified position are at the next higher
-   * position within the list. The list's size is increased by 1.
-   *
-   * @param newPosition an integer that specifies the desired position of the
-   * new entry
-   * @param newEntry the object to be added as a new entry
-   * @return true if the addition is successful, or false if either the list is
-   * full, newPosition < 1, or
-   *          newPosition > getNumberOfEntries()+1
-   */
-  public boolean add(int newPosition, T newEntry);
+    // Adds a new entry to the end of the list.
+    public boolean add(T newEntry);
 
-  /**
-   * Task: Removes the entry at a given position from the list. Entries
-   * originally at positions higher than the given position are at the next
-   * lower position within the list, and the list's size is decreased by 1.
-   *
-   * @param givenPosition an integer that indicates the position of the entry to
-   * be removed
-   * @return a reference to the removed entry or null, if either the list was
-   * empty, givenPosition < 1, or
-   *          givenPosition > getNumberOfEntries()
-   */
-  public T remove(int givenPosition);
+    // Adds a new entry at the specified position.
+    public boolean add(int newPosition, T newEntry);
 
-  /**
-   * Task: Removes all entries from the list.
-   */
-  public void clear();
+    // Removes and returns the entry at the specified position.
+    public T remove(int givenPosition);
 
-  /**
-   * Task: Replaces the entry at a given position in the list.
-   *
-   * @param givenPosition an integer that indicates the position of the entry to
-   * be replaced
-   * @param newEntry the object that will replace the entry at the position
-   * givenPosition
-   * @return true if the replacement occurs, or false if either the list is
-   * empty, givenPosition < 1, or givenPosition > getNumberOfEntries()
-   */
-  public boolean replace(int givenPosition, T newEntry);
+    // Removes all entries from the list.
+    public void clear();
 
-  /**
-   * Task: Retrieves the entry at a given position in the list.
-   *
-   * @param givenPosition an integer that indicates the position of the desired
-   * entry
-   * @return a reference to the indicated entry or null, if either the list is
-   * empty, givenPosition < 1, or givenPosition > getNumberOfEntries()
-   */
-  public T getEntry(int givenPosition);
+    // Replaces the entry at the specified position.
+    public boolean replace(int givenPosition, T newEntry);
 
-  /**
-   * Task: Sees whether the list contains a given entry.
-   *
-   * @param anEntry the object that is the desired entry
-   * @return true if the list contains anEntry, or false if not
-   */
-  public boolean contains(T anEntry);
+    // Returns the entry at the specified position.
+    public T getEntry(int givenPosition);
 
-  /**
-   * Task: Gets the number of entries in the list.
-   *
-   * @return the integer number of entries currently in the list
-   */
-  public int getNumberOfEntries();
+    // Checks whether the list contains the specified entry.
+    public boolean contains(T anEntry);
 
-  /**
-   * Task: Sees whether the list is empty.
-   *
-   * @return true if the list is empty, or false if not
-   */
-  public boolean isEmpty();
+    // Returns the number of entries in the list.
+    public int getNumberOfEntries();
 
-  /**
-   * Task: Sees whether the list is full.
-   *
-   * @return true if the list is full, or false if not
-   */
-  public boolean isFull();
+    // Checks whether the list is empty.
+    public boolean isEmpty();
+
+    // Checks whether the list is full.
+    public boolean isFull();
 }

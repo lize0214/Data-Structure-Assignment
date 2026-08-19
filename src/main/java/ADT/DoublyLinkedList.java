@@ -1,29 +1,32 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package ADT;
+
 import java.io.Serializable;
+
 /**
- * DoublyLinkedList.java
+ * Generic doubly linked list implementation.
  *
- * Generic Doubly Linked List implementation.
- *
- * @author User
+ * @author Tan Pei Xing
  */
 public class DoublyLinkedList<T> implements ListInterface<T>, Serializable {
+
     private Node<T> firstNode;
     private Node<T> lastNode;
     private int numberOfEntries;
+
+    // Initializes an empty list.
     public DoublyLinkedList() {
         firstNode = null;
         lastNode = null;
         numberOfEntries = 0;
     }
+
+    // Returns the number of entries in the list.
     @Override
-public int size() {
-    return numberOfEntries;
-}
+    public int size() {
+        return numberOfEntries;
+    }
+
+    // Adds a new entry to the end of the list.
     @Override
     public boolean add(T newEntry) {
         Node<T> newNode = new Node<>(newEntry);
@@ -40,6 +43,8 @@ public int size() {
         numberOfEntries++;
         return true;
     }
+
+    // Adds a new entry at the specified position.
     @Override
     public boolean add(int newPosition, T newEntry) {
         if (newPosition < 1 || newPosition > numberOfEntries + 1) {
@@ -69,6 +74,8 @@ public int size() {
         numberOfEntries++;
         return true;
     }
+
+    // Removes and returns the entry at the specified position.
     @Override
     public T remove(int givenPosition) {
         if (givenPosition < 1 || givenPosition > numberOfEntries) {
@@ -91,19 +98,23 @@ public int size() {
             nodeAfter.setPrevious(nodeBefore);
         }
 
-        // Help garbage collection / avoid stale links
+        // Removes links from the deleted node.
         nodeToRemove.setNext(null);
         nodeToRemove.setPrevious(null);
 
         numberOfEntries--;
         return nodeToRemove.getData();
     }
+
+    // Removes all entries from the list.
     @Override
-public void clear() {
-    firstNode = null;
-    lastNode = null;
-    numberOfEntries = 0;
-}
+    public void clear() {
+        firstNode = null;
+        lastNode = null;
+        numberOfEntries = 0;
+    }
+
+    // Replaces the entry at the specified position.
     @Override
     public boolean replace(int givenPosition, T newEntry) {
         if (givenPosition < 1 || givenPosition > numberOfEntries) {
@@ -114,6 +125,8 @@ public void clear() {
         nodeAtPosition.setData(newEntry);
         return true;
     }
+
+    // Returns the entry at the specified position.
     @Override
     public T getEntry(int givenPosition) {
         if (givenPosition < 1 || givenPosition > numberOfEntries) {
@@ -122,6 +135,8 @@ public void clear() {
 
         return getNodeAt(givenPosition).getData();
     }
+
+    // Checks whether the list contains the specified entry.
     @Override
     public boolean contains(T anEntry) {
         Node<T> currentNode = firstNode;
@@ -135,18 +150,26 @@ public void clear() {
 
         return false;
     }
+
+    // Returns the number of entries in the list.
     @Override
-public int getNumberOfEntries() {
-    return numberOfEntries;
-}
-   @Override
-public boolean isEmpty() {
-    return numberOfEntries == 0;
-}
+    public int getNumberOfEntries() {
+        return numberOfEntries;
+    }
+
+    // Checks whether the list is empty.
+    @Override
+    public boolean isEmpty() {
+        return numberOfEntries == 0;
+    }
+
+    // Returns whether the list is full.
     @Override
     public boolean isFull() {
         return false;
     }
+
+    // Returns all entries as a string.
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("[");
@@ -164,13 +187,7 @@ public boolean isEmpty() {
         return sb.toString();
     }
 
-    /**
-     * Walks to the node at the given 1-indexed position.
-     * Traverses from whichever end (front or back) is closer,
-     * which keeps average traversal cost down for large lists.
-     * Caller is responsible for ensuring position is valid
-     * (1 <= position <= numberOfEntries).
-     */
+    // Finds a node by starting from the closer end of the list.
     private Node<T> getNodeAt(int position) {
         Node<T> currentNode;
 
