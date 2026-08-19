@@ -3,9 +3,9 @@ package Entity;
 import java.time.LocalDate;
 
 /**
- * RewardRedemption.java
- * Module-specific entity for the Loyalty & Rewards Service.
- * Records a single instance of a Member redeeming a Reward.
+ * Represents a member's reward redemption.
+ *
+ * @author Tan Pei Xing
  */
 public class RewardRedemption {
 
@@ -15,11 +15,13 @@ public class RewardRedemption {
     private int redeemedPoints;
     private LocalDate redeemDate;
 
+    // Creates an empty redemption.
     public RewardRedemption() {
     }
 
+    // Creates a redemption with the given details.
     public RewardRedemption(String redemptionId, String memberId, String rewardId,
-                             int redeemedPoints, LocalDate redeemDate) {
+            int redeemedPoints, LocalDate redeemDate) {
         this.redemptionId = redemptionId;
         this.memberId = memberId;
         this.rewardId = rewardId;
@@ -27,47 +29,57 @@ public class RewardRedemption {
         this.redeemDate = redeemDate;
     }
 
+    // Returns the redemption ID.
     public String getRedemptionId() {
         return redemptionId;
     }
 
+    // Sets the redemption ID.
     public void setRedemptionId(String redemptionId) {
         this.redemptionId = redemptionId;
     }
 
+    // Returns the member ID.
     public String getMemberId() {
         return memberId;
     }
 
+    // Sets the member ID.
     public void setMemberId(String memberId) {
         this.memberId = memberId;
     }
 
+    // Returns the reward ID.
     public String getRewardId() {
         return rewardId;
     }
 
+    // Sets the reward ID.
     public void setRewardId(String rewardId) {
         this.rewardId = rewardId;
     }
 
+    // Returns the redeemed points.
     public int getRedeemedPoints() {
         return redeemedPoints;
     }
 
+    // Sets the redeemed points.
     public void setRedeemedPoints(int redeemedPoints) {
         this.redeemedPoints = redeemedPoints;
     }
 
+    // Returns the redemption date.
     public LocalDate getRedeemDate() {
         return redeemDate;
     }
 
+    // Sets the redemption date.
     public void setRedeemDate(LocalDate redeemDate) {
         this.redeemDate = redeemDate;
     }
 
-    // Format: redemptionId,memberId,rewardId,redeemedPoints,redeemDate(ISO yyyy-MM-dd)
+    // Creates a redemption object from a CSV line.
     public static RewardRedemption fromCsvLine(String line) {
         String[] parts = line.split(",");
         if (parts.length != 5) {
@@ -82,10 +94,12 @@ public class RewardRedemption {
         );
     }
 
+    // Converts the redemption to CSV format.
     public String toCsvLine() {
         return redemptionId + "," + memberId + "," + rewardId + "," + redeemedPoints + "," + redeemDate;
     }
 
+    // Returns the redemption details as a string.
     @Override
     public String toString() {
         return "RewardRedemption{" + redemptionId + ", member:" + memberId + ", reward:" + rewardId

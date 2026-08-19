@@ -1,68 +1,40 @@
 package Entity;
+
 import java.time.LocalDate;
 
 /**
- * PointsTransaction.java
- * Module-specific entity for the Loyalty & Rewards Service.
- * Records every points change for a member - earning, redeeming, undoing
- * a redemption, an expiry deduction, or a starting balance at registration -
- * so a full Transaction History can be shown, not just redemption events.
+ * Represents a points transaction for a member.
  *
- * Carries two expiry-related fields used by LoyaltyController's expiry
- * engine:
- *   - expiryDate       : when this transaction's points expire (only set
- *                        on EARN transactions; null for everything else).
- *   - expiryProcessed  : whether this transaction has already had its
- *                        expired points deducted from the member's
- *                        balance by processExpiredPoints(). Once true, it
- *                        is permanently skipped on every future run, so
- *                        the same points can never be deducted twice.
- *
- * Backward compatible: older 6-column files (no expiry at all) and
- * 7-column files (expiry date but no processed flag) are still read
- * correctly - expiryDate defaults to null and expiryProcessed defaults
- * to false for rows that predate those columns.
- */
-
-/*
- * Author: Tan Pei Xing
+ * @author Tan Pei Xing
  */
 public class PointsTransaction {
+
     private String transactionId;
     private String memberId;
-    private int pointsChange;   // positive = earned/refunded, negative = spent/expired
-    private String type;        // EARN, REDEEM, UNDO, REGISTER, EXPIRE
-    private String note;        // short description, letters/numbers/spaces only
+    private int pointsChange;   // Positive = earned/refunded, negative = spent/expired.
+    private String type;        // EARN, REDEEM, UNDO, REGISTER, EXPIRE.
+    private String note;        // Transaction description.
     private LocalDate transactionDate;
-    private LocalDate expiryDate;      // null when this transaction does not carry expiring points
-    private boolean expiryProcessed;   // true once this transaction's expiry has been applied
+    private LocalDate expiryDate;      // Expiry date for earned points.
+    private boolean expiryProcessed;   // Tracks whether expiry has been processed.
 
+    // Creates an empty transaction.
     public PointsTransaction() {
     }
 
-    /**
-     * Simplest constructor - no expiry. Used for REDEEM, UNDO, EXPIRE
-     * (deductions never expire - there's nothing left to expire).
-     */
+    // Creates a transaction without an expiry date.
     public PointsTransaction(String transactionId, String memberId, int pointsChange,
                               String type, String note, LocalDate transactionDate) {
         this(transactionId, memberId, pointsChange, type, note, transactionDate, null);
     }
 
-    /**
-     * Used for EARN transactions - carries an expiry date, not yet
-     * processed (expiryProcessed defaults to false).
-     */
+    // Creates a transaction with an expiry date.
     public PointsTransaction(String transactionId, String memberId, int pointsChange,
                               String type, String note, LocalDate transactionDate, LocalDate expiryDate) {
         this(transactionId, memberId, pointsChange, type, note, transactionDate, expiryDate, false);
     }
 
-    /**
-     * Full constructor - used internally by fromCsvLine() when restoring
-     * a transaction whose expiry may already have been processed in a
-     * previous run.
-     */
+    // Creates a transaction with complete expiry information.
     public PointsTransaction(String transactionId, String memberId, int pointsChange,
                               String type, String note, LocalDate transactionDate,
                               LocalDate expiryDate, boolean expiryProcessed) {
@@ -76,65 +48,87 @@ public class PointsTransaction {
         this.expiryProcessed = expiryProcessed;
     }
 
+    // Returns the transaction ID.
     public String getTransactionId() {
         return transactionId;
     }
+
+    // Sets the transaction ID.
     public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
+
+    // Returns the member ID.
     public String getMemberId() {
         return memberId;
     }
+
+    // Sets the member ID.
     public void setMemberId(String memberId) {
         this.memberId = memberId;
     }
+
+    // Returns the points change.
     public int getPointsChange() {
         return pointsChange;
     }
+
+    // Sets the points change.
     public void setPointsChange(int pointsChange) {
         this.pointsChange = pointsChange;
     }
+
+    // Returns the transaction type.
     public String getType() {
         return type;
     }
+
+    // Sets the transaction type.
     public void setType(String type) {
         this.type = type;
     }
+
+    // Returns the transaction note.
     public String getNote() {
         return note;
     }
+
+    // Sets the transaction note.
     public void setNote(String note) {
         this.note = note;
     }
+
+    // Returns the transaction date.
     public LocalDate getTransactionDate() {
         return transactionDate;
     }
+
+    // Sets the transaction date.
     public void setTransactionDate(LocalDate transactionDate) {
         this.transactionDate = transactionDate;
     }
+
+    // Returns the expiry date.
     public LocalDate getExpiryDate() {
         return expiryDate;
     }
+
+    // Sets the expiry date.
     public void setExpiryDate(LocalDate expiryDate) {
         this.expiryDate = expiryDate;
     }
+
+    // Checks whether expiry has been processed.
     public boolean isExpiryProcessed() {
         return expiryProcessed;
     }
+
+    // Sets the expiry processed status.
     public void setExpiryProcessed(boolean expiryProcessed) {
         this.expiryProcessed = expiryProcessed;
     }
 
-    /**
-     * Format: transactionId,memberId,pointsChange,type,note,transactionDate,expiryDate,expiryProcessed
-     * expiryDate is written as the literal text "NONE" when there isn't
-     * one, so it stays a real column (not a blank/missing field).
-     *
-     * split(",", 8) on read naturally yields 6, 7, or 8 parts depending
-     * on how many commas the line actually contains, so older rows
-     * (written before expiryDate/expiryProcessed existed) parse without
-     * any special-casing beyond checking parts.length.
-     */
+    // Creates a transaction object from a CSV line.
     public static PointsTransaction fromCsvLine(String line) {
         String[] parts = line.split(",", 8);
 
@@ -177,19 +171,14 @@ public class PointsTransaction {
         throw new IllegalArgumentException("Invalid PointsTransaction data format: " + line);
     }
 
+    // Converts the transaction to CSV format.
     public String toCsvLine() {
         String expiryPart = (expiryDate == null) ? "NONE" : expiryDate.toString();
         return transactionId + "," + memberId + "," + pointsChange + "," + type + "," + note + ","
                 + transactionDate + "," + expiryPart + "," + expiryProcessed;
     }
 
-    /**
-     * Display format matching the Transaction History screen:
-     *   15/08/2026
-     *   +250 Points
-     *   Booking Payment
-     *   (expires 15/08/2027)     <- only shown when this transaction carries an expiry
-     */
+    // Returns the transaction details for display.
     @Override
     public String toString() {
         String sign = (pointsChange >= 0) ? "+" : "";

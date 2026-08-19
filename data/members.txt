@@ -1,5 +1,5 @@
 M001,Jisoo,Platinum,26366
-M002,Minji,Gold,2500
+M002,Minji,Gold,2635
 M003,Sana,Elite,4644
 M004,Chen Wei,Silver,0
 M005,Hanni,Silver,873
