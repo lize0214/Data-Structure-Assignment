@@ -11,41 +11,30 @@ import Utility.FileUtility;
 import Utility.ValidationUtility;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
-/**
- * LoyaltyController.java
- *
- * Control class for the Loyalty & Rewards Service.
- *
- * NOTE: This class intentionally does NOT extend AbstractEntityController.
- * AbstractEntityController's constructor hardcodes `new ArrayList<>()`,
- * so extending it would mean this module's chosen ADT (DoublyLinkedList)
- * never actually gets used. Instead, this controller manages its own
- * DoublyLinkedList<Reward> and DoublyLinkedList<RewardRedemption>, and
- * depends on the shared MemberController for reading/updating Members
- * (which is owned by the team and must not be duplicated).
+/*
+ * Author: Tan Pei Xing
  */
 public class LoyaltyController {
 
     private static final String REWARD_FILE = "data/rewards.txt";
     private static final String REDEMPTION_FILE = "data/redemptions.txt";
     private static final String TRANSACTION_FILE = "data/transactions.txt";
-
-    // Tier point thresholds (inclusive lower bound). Adjust freely — kept
-    // in one place so the whole tier system can be tuned from here.
     private static final int GOLD_MIN = 1000;
     private static final int ELITE_MIN = 3000;
     private static final int DIAMOND_MIN = 6000;
     private static final int PLATINUM_MIN = 10000;
-
-    // A reward at or below this quantity triggers a low-stock warning.
     private static final int LOW_STOCK_THRESHOLD = 3;
+    private static final int POINTS_VALID_MONTHS = 12;
+    private static final int EXPIRY_WARNING_DAYS = 30;
 
     private final ListInterface<Reward> rewardList;
     private final ListInterface<RewardRedemption> redemptionList;
     private final ListInterface<PointsTransaction> transactionList;
     private final MemberController memberController;
 
+    // Initializes the loyalty controller.
     public LoyaltyController(MemberController memberController) {
         this.memberController = memberController;
         this.rewardList = new DoublyLinkedList<>();
@@ -54,10 +43,10 @@ public class LoyaltyController {
         loadRewardsFromFile();
         loadRedemptionsFromFile();
         loadTransactionsFromFile();
+        processExpiredPoints();
     }
 
-    // ───────────────────── File I/O ─────────────────────
-
+    // Loads rewards from the file.
     private void loadRewardsFromFile() {
         String[] lines = FileUtility.readLines(REWARD_FILE);
         for (String line : lines) {
@@ -67,6 +56,7 @@ public class LoyaltyController {
         }
     }
 
+    // Saves rewards to the file.
     private void saveRewardsToFile() {
         String[] lines = new String[rewardList.size()];
         for (int i = 0; i < rewardList.size(); i++) {
@@ -75,6 +65,7 @@ public class LoyaltyController {
         FileUtility.writeAllLines(REWARD_FILE, lines);
     }
 
+    // Loads redemption records.
     private void loadRedemptionsFromFile() {
         String[] lines = FileUtility.readLines(REDEMPTION_FILE);
         for (String line : lines) {
@@ -84,6 +75,7 @@ public class LoyaltyController {
         }
     }
 
+    // Saves redemption records.
     private void saveRedemptionsToFile() {
         String[] lines = new String[redemptionList.size()];
         for (int i = 0; i < redemptionList.size(); i++) {
@@ -92,6 +84,7 @@ public class LoyaltyController {
         FileUtility.writeAllLines(REDEMPTION_FILE, lines);
     }
 
+    // Loads point transactions.
     private void loadTransactionsFromFile() {
         String[] lines = FileUtility.readLines(TRANSACTION_FILE);
         for (String line : lines) {
@@ -101,6 +94,7 @@ public class LoyaltyController {
         }
     }
 
+    // Saves point transactions.
     private void saveTransactionsToFile() {
         String[] lines = new String[transactionList.size()];
         for (int i = 0; i < transactionList.size(); i++) {
@@ -109,16 +103,12 @@ public class LoyaltyController {
         FileUtility.writeAllLines(TRANSACTION_FILE, lines);
     }
 
+    // Generates the next transaction ID.
     private String generateNextTransactionId() {
         return String.format("TXN%04d", transactionList.size() + 1);
     }
 
-    /**
-     * Appends one entry to the points transaction log and persists it.
-     * Called internally whenever a member's points change for any reason,
-     * so Transaction History always reflects every earn/redeem/undo/
-     * registration event, not just redemptions.
-     */
+    // Records a points transaction.
     private void logTransaction(String memberId, int pointsChange, String type, String note) {
         PointsTransaction transaction = new PointsTransaction(
                 generateNextTransactionId(), memberId, pointsChange, type, note, LocalDate.now());
@@ -126,6 +116,16 @@ public class LoyaltyController {
         saveTransactionsToFile();
     }
 
+    // Records a transaction with an expiry date.
+    private void logTransactionWithExpiry(String memberId, int pointsChange, String type,
+            String note, LocalDate expiryDate) {
+        PointsTransaction transaction = new PointsTransaction(
+                generateNextTransactionId(), memberId, pointsChange, type, note, LocalDate.now(), expiryDate);
+        transactionList.add(transaction);
+        saveTransactionsToFile();
+    }
+
+    // Gets a member transaction history.
     public ListInterface<PointsTransaction> getTransactionHistoryByMember(String memberId) {
         ListInterface<PointsTransaction> results = new DoublyLinkedList<>();
         for (int i = 1; i <= transactionList.size(); i++) {
@@ -137,17 +137,12 @@ public class LoyaltyController {
         return results;
     }
 
-    /**
-     * Full transaction ledger across every member - used when the
-     * Transaction History screen is asked to show everything.
-     */
+    // Gets all transactions.
     public ListInterface<PointsTransaction> getAllTransactions() {
         return transactionList;
     }
 
-    /**
-     * Count of transactions logged today - used by the Notification Centre.
-     */
+    // Counts today's transactions.
     public int getTransactionsTodayCount() {
         LocalDate today = LocalDate.now();
         int count = 0;
@@ -159,17 +154,150 @@ public class LoyaltyController {
         return count;
     }
 
-    // ───────────────────── Member Management (delegates to shared MemberController) ─────────────────────
+    // Gets points expiring soon.
+    public ListInterface<PointsTransaction> getExpiringSoonTransactions(String memberId) {
+        ListInterface<PointsTransaction> result = new DoublyLinkedList<>();
+        LocalDate today = LocalDate.now();
+        LocalDate cutoff = today.plusDays(EXPIRY_WARNING_DAYS);
 
-    /**
-     * Registers a new Loyalty member. The tier is NOT chosen manually -
-     * it's calculated automatically from the starting points, exactly like
-     * checkAndApplyTierUpgrade() does later on. This guarantees a member's
-     * tier can never be inconsistent with their points (e.g. "Platinum"
-     * with 0 points), and matches the flowchart's "Assign Initial
-     * Membership Tier" step, which is an automatic assignment, not a
-     * manual selection.
-     */
+        for (int i = 1; i <= transactionList.size(); i++) {
+            PointsTransaction t = transactionList.getEntry(i);
+
+            if (!"EARN".equals(t.getType()) || t.getExpiryDate() == null) {
+                continue;
+            }
+            if (memberId != null && !t.getMemberId().equals(memberId)) {
+                continue;
+            }
+
+            LocalDate expiry = t.getExpiryDate();
+            boolean alreadyExpired = expiry.isBefore(today);
+            boolean withinWarningWindow = !expiry.isAfter(cutoff);
+
+            if (!alreadyExpired && withinWarningWindow) {
+                result.add(t);
+            }
+        }
+        return result;
+    }
+
+    // Gets days until expiry.
+    public long getDaysUntilExpiry(PointsTransaction transaction) {
+        return ChronoUnit.DAYS.between(LocalDate.now(), transaction.getExpiryDate());
+    }
+
+    // Gets the expiry warning period.
+    public int getExpiryWarningDays() {
+        return EXPIRY_WARNING_DAYS;
+    }
+
+    // Gets recently expired transactions.
+    public ListInterface<PointsTransaction> getRecentlyExpiredTransactions(String memberId) {
+        ListInterface<PointsTransaction> result = new DoublyLinkedList<>();
+        LocalDate cutoff = LocalDate.now().minusDays(EXPIRY_WARNING_DAYS);
+
+        for (int i = 1; i <= transactionList.size(); i++) {
+            PointsTransaction t = transactionList.getEntry(i);
+
+            if (!"EXPIRE".equals(t.getType())) {
+                continue;
+            }
+            if (memberId != null && !t.getMemberId().equals(memberId)) {
+                continue;
+            }
+            if (t.getTransactionDate().isBefore(cutoff)) {
+                continue;
+            }
+
+            result.add(t);
+        }
+        return result;
+    }
+
+    // Stores expired points for a member.
+    public static class ExpiredPointsResult {
+
+        public final String memberId;
+        public int expiredPoints;
+
+        public ExpiredPointsResult(String memberId, int expiredPoints) {
+            this.memberId = memberId;
+            this.expiredPoints = expiredPoints;
+        }
+    }
+
+    // Processes expired points.
+    public ListInterface<ExpiredPointsResult> processExpiredPoints() {
+        ListInterface<ExpiredPointsResult> results = new DoublyLinkedList<>();
+        LocalDate today = LocalDate.now();
+        boolean anyTransactionFlagged = false;
+
+        for (int i = 1; i <= transactionList.size(); i++) {
+            PointsTransaction t = transactionList.getEntry(i);
+
+            if (!"EARN".equals(t.getType())) {
+                continue;
+            }
+            if (t.getExpiryDate() == null || t.isExpiryProcessed()) {
+                continue;
+            }
+            if (!t.getExpiryDate().isBefore(today)) {
+                continue; // not expired yet
+            }
+            t.setExpiryProcessed(true);
+            anyTransactionFlagged = true;
+
+            int expiredAmount = t.getPointsChange();
+            if (expiredAmount <= 0) {
+                continue;
+            }
+
+            ExpiredPointsResult existing = null;
+            for (int j = 1; j <= results.size(); j++) {
+                ExpiredPointsResult r = results.getEntry(j);
+                if (r.memberId.equals(t.getMemberId())) {
+                    existing = r;
+                    break;
+                }
+            }
+
+            if (existing != null) {
+                existing.expiredPoints += expiredAmount;
+            } else {
+                results.add(new ExpiredPointsResult(t.getMemberId(), expiredAmount));
+            }
+        }
+
+        if (anyTransactionFlagged) {
+            saveTransactionsToFile();
+        }
+
+        for (int i = 1; i <= results.size(); i++) {
+            ExpiredPointsResult r = results.getEntry(i);
+            Member member = memberController.findByKey(r.memberId);
+            if (member == null) {
+                continue;
+            }
+
+            int newBalance = Math.max(0, member.getPoints() - r.expiredPoints);
+            int actuallyDeducted = member.getPoints() - newBalance;
+
+            memberController.updatePoints(r.memberId, newBalance);
+            checkAndApplyTierUpgrade(r.memberId);
+
+            logTransaction(r.memberId, -actuallyDeducted, "EXPIRE", actuallyDeducted + " Points Expired");
+            r.expiredPoints = actuallyDeducted;
+        }
+
+        return results;
+    }
+
+    // Generates the next member ID.
+    public String generateNextMemberId() {
+        return String.format("M%03d", memberController.getAll().size() + 1);
+    }
+
+    // Registers a new member.
     public ControllerResult registerMember(String memberId, String name, int points) {
         ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
         acc.check(ValidationUtility.validateRequired(memberId, "Member ID"));
@@ -188,20 +316,20 @@ public class LoyaltyController {
         }
 
         if (points > 0) {
-            logTransaction(memberId, points, "REGISTER", "Registration Starting Points");
+            LocalDate expiry = LocalDate.now().plusMonths(POINTS_VALID_MONTHS);
+            logTransactionWithExpiry(memberId, points, "EARN", "Registration Starting Points", expiry);
         }
 
-        return ControllerResult.success("Assigned tier: " + assignedTier + " (based on " + points + " starting points)");
+        return ControllerResult.success(memberId + " - " + name + " - " + assignedTier
+                + " tier - " + points + " starting points");
     }
 
+    // Searches for a member by ID.
     public Member searchMemberById(String memberId) {
         return memberController.findByKey(memberId);
     }
 
-    /**
-     * Linear search by name (case-insensitive, partial match) since the
-     * shared MemberController only supports lookup by ID.
-     */
+    // Searches members by name.
     public ListInterface<Member> searchMemberByName(String namePart) {
         ListInterface<Member> results = new DoublyLinkedList<>();
         ListInterface<Member> allMembers = memberController.getAll();
@@ -215,12 +343,12 @@ public class LoyaltyController {
         return results;
     }
 
+    // Returns all members.
     public ListInterface<Member> viewAllMembers() {
         return memberController.getAll();
     }
 
-    // ───────────────────── Reward Points ─────────────────────
-
+    // Adds points to a member.
     public ControllerResult earnPoints(String memberId, int pointsEarned) {
         String error = ValidationUtility.validatePositive(pointsEarned, "Points earned");
         if (error != null) {
@@ -233,33 +361,48 @@ public class LoyaltyController {
         }
 
         double multiplier = getTierMultiplier(member.getTier());
-        int awardedPoints = (int) Math.round(pointsEarned * multiplier);
 
-        int newPoints = member.getPoints() + awardedPoints;
+        long awardedPointsLong
+                = Math.round(pointsEarned * multiplier);
+
+        if (awardedPointsLong > Integer.MAX_VALUE) {
+            return ControllerResult.fail(
+                    "Calculated points exceed the maximum allowed value.");
+        }
+
+        long newPointsLong
+                = (long) member.getPoints() + awardedPointsLong;
+
+        if (newPointsLong > Integer.MAX_VALUE) {
+            return ControllerResult.fail(
+                    "Points balance would exceed the maximum allowed value.");
+        }
+
+        int awardedPoints = (int) awardedPointsLong;
+        int newPoints = (int) newPointsLong;
         ControllerResult result = memberController.updatePoints(memberId, newPoints);
         if (!result.isOk()) {
             return result;
         }
 
+        String tierBeforeUpgradeCheck = member.getTier();
         checkAndApplyTierUpgrade(memberId);
 
         String bonusNote = (multiplier > 1.00)
-                ? " (" + member.getTier() + " tier bonus applied: x" + multiplier + ")"
+                ? " (" + tierBeforeUpgradeCheck + " tier bonus applied: x" + multiplier + ")"
                 : "";
 
         String transactionNote = (multiplier > 1.00)
-                ? "Earned Points (" + member.getTier() + " Bonus)"
+                ? "Earned Points (" + tierBeforeUpgradeCheck + " Bonus)"
                 : "Earned Points";
-        logTransaction(memberId, awardedPoints, "EARN", transactionNote);
+
+        LocalDate expiry = LocalDate.now().plusMonths(POINTS_VALID_MONTHS);
+        logTransactionWithExpiry(memberId, awardedPoints, "EARN", transactionNote, expiry);
 
         return ControllerResult.success("Earned " + awardedPoints + " points" + bonusNote + ". New balance: " + newPoints);
     }
 
-    /**
-     * Returns the member's rank by points (1 = highest). Counts how many
-     * members have strictly more points and adds 1 - an O(n) comparison
-     * count rather than a full sort, since only the position is needed.
-     */
+    // Gets a member rank.
     public int getMemberRank(String memberId) {
         Member target = memberController.findByKey(memberId);
         if (target == null) {
@@ -276,14 +419,12 @@ public class LoyaltyController {
         return rank;
     }
 
+    // Gets the total member count.
     public int getTotalMemberCount() {
         return memberController.getAll().size();
     }
 
-    /**
-     * Most recent redemption for a member (last entry appended for them),
-     * or null if they haven't redeemed anything yet.
-     */
+    // Gets the latest member redemption.
     public RewardRedemption getMostRecentRedemptionForMember(String memberId) {
         ListInterface<RewardRedemption> memberHistory = viewRedemptionHistoryByMember(memberId);
         if (memberHistory.isEmpty()) {
@@ -292,10 +433,7 @@ public class LoyaltyController {
         return memberHistory.getEntry(memberHistory.size());
     }
 
-    /**
-     * Count of rewards still in stock (regardless of whether any given
-     * member can currently afford them).
-     */
+    // Counts rewards in stock.
     public int getAvailableRewardCount() {
         int count = 0;
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -306,40 +444,61 @@ public class LoyaltyController {
         return count;
     }
 
-    /**
-     * Tier bonus multiplier applied automatically when earning points.
-     * Higher tiers earn slightly more per action - a small perk that
-     * rewards loyalty and gives the tier system real weight beyond
-     * just a label.
-     */
+    // Gets the low-stock threshold.
+    public int getLowStockThreshold() {
+        return LOW_STOCK_THRESHOLD;
+    }
+
+    // Gets the tier points multiplier.
     public double getTierMultiplier(String tier) {
         return switch (tier) {
-            case "Gold" -> 1.10;
-            case "Elite" -> 1.20;
-            case "Diamond" -> 1.35;
-            case "Platinum" -> 1.50;
-            default -> 1.00; // Silver / unknown
+            case "Gold" ->
+                1.10;
+            case "Elite" ->
+                1.20;
+            case "Diamond" ->
+                1.35;
+            case "Platinum" ->
+                1.50;
+            default ->
+                1.00; // Silver / unknown
         };
     }
 
-    // ───────────────────── Membership Tier ─────────────────────
-
-    /**
-     * Determines the correct tier for a given points total.
-     */
+    // Calculates a member tier.
     public String calculateTier(int points) {
-        if (points >= PLATINUM_MIN) return "Platinum";
-        if (points >= DIAMOND_MIN) return "Diamond";
-        if (points >= ELITE_MIN) return "Elite";
-        if (points >= GOLD_MIN) return "Gold";
+        if (points >= PLATINUM_MIN) {
+            return "Platinum";
+        }
+        if (points >= DIAMOND_MIN) {
+            return "Diamond";
+        }
+        if (points >= ELITE_MIN) {
+            return "Elite";
+        }
+        if (points >= GOLD_MIN) {
+            return "Gold";
+        }
         return "Silver";
     }
 
-    /**
-     * Recalculates a member's tier based on their current points and
-     * updates it if it has changed. Returns a ControllerResult describing
-     * whether an upgrade happened.
-     */
+    // Gets the points required for a tier.
+    public int getTierThreshold(String tier) {
+        return switch (tier) {
+            case "Gold" ->
+                GOLD_MIN;
+            case "Elite" ->
+                ELITE_MIN;
+            case "Diamond" ->
+                DIAMOND_MIN;
+            case "Platinum" ->
+                PLATINUM_MIN;
+            default ->
+                0; // Silver
+        };
+    }
+
+    // Updates the member tier.
     public ControllerResult checkAndApplyTierUpgrade(String memberId) {
         Member member = memberController.findByKey(memberId);
         if (member == null) {
@@ -355,14 +514,10 @@ public class LoyaltyController {
         if (!result.isOk()) {
             return result;
         }
-        return ControllerResult.success("Tier upgraded to " + correctTier);
+        return ControllerResult.success("Tier changed to " + correctTier);
     }
 
-    /**
-     * Returns rewards the member can currently afford (points requirement
-     * met AND still in stock) - used to show "Recommended Rewards" when
-     * a member checks their balance.
-     */
+    // Gets affordable rewards.
     public ListInterface<Reward> getAffordableRewards(int memberPoints) {
         ListInterface<Reward> result = new DoublyLinkedList<>();
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -374,10 +529,7 @@ public class LoyaltyController {
         return result;
     }
 
-    /**
-     * Builds a printable progress bar showing how close a member is to
-     * the next tier up. Returns a plain message if already at the top tier.
-     */
+    // Creates the tier progress display.
     public String getTierProgressDisplay(String currentTier, int currentPoints) {
         String[] tiers = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
         int[] thresholds = {0, GOLD_MIN, ELITE_MIN, DIAMOND_MIN, PLATINUM_MIN};
@@ -417,10 +569,14 @@ public class LoyaltyController {
                 + "Need " + pointsNeeded + " more points.";
     }
 
-    // ───────────────────── Reward Management ─────────────────────
+    // Generates the next reward ID.
+    public String generateNextRewardId() {
+        return String.format("R%03d", rewardList.size() + 1);
+    }
 
+    // Adds a new reward.
     public ControllerResult addReward(String rewardId, String rewardName, String category,
-                                       int pointsRequired, int quantity) {
+            int pointsRequired, int quantity) {
         ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
         acc.check(ValidationUtility.validateRequired(rewardId, "Reward ID"));
         acc.check(ValidationUtility.validateRequired(rewardName, "Reward name"));
@@ -436,14 +592,52 @@ public class LoyaltyController {
 
         rewardList.add(new Reward(rewardId, rewardName, category, pointsRequired, quantity));
         saveRewardsToFile();
-        return ControllerResult.success();
+        return ControllerResult.success(rewardId + " - " + rewardName + " (" + category + ") - "
+                + pointsRequired + " pts - Qty: " + quantity);
     }
 
+    // Restocks a reward.
+    public ControllerResult restockReward(String rewardId, int quantity) {
+
+        String error
+                = ValidationUtility.validatePositive(quantity, "Restock quantity");
+
+        if (error != null) {
+            return ControllerResult.fail(error);
+        }
+
+        Reward reward = findRewardById(rewardId);
+
+        if (reward == null) {
+            return ControllerResult.fail(
+                    "Reward not found: " + rewardId);
+        }
+
+        long newQuantity
+                = (long) reward.getQuantity() + quantity;
+
+        if (newQuantity > Integer.MAX_VALUE) {
+            return ControllerResult.fail(
+                    "Stock quantity exceeds the maximum allowed value.");
+        }
+
+        reward.setQuantity((int) newQuantity);
+
+        saveRewardsToFile();
+
+        return ControllerResult.success(
+                "Restocked " + reward.getRewardName()
+                + ". Added " + quantity
+                + " units. New stock: " + reward.getQuantity());
+    }
+
+    // Searches for a reward by ID.
     public Reward findRewardById(String rewardId) {
         int position = findRewardPosition(rewardId);
         return (position == -1) ? null : rewardList.getEntry(position);
     }
 
+    // Finds a reward position.
     private int findRewardPosition(String rewardId) {
         for (int i = 1; i <= rewardList.size(); i++) {
             if (rewardList.getEntry(i).getRewardId().equals(rewardId)) {
@@ -453,15 +647,12 @@ public class LoyaltyController {
         return -1;
     }
 
+    // Returns all rewards.
     public ListInterface<Reward> viewRewards() {
         return rewardList;
     }
 
-    /**
-     * Linear search across reward name and category (case-insensitive,
-     * partial match) - lets a member type "spa" and find "Spa Voucher"
-     * instead of scrolling the whole catalog.
-     */
+    // Searches rewards by keyword.
     public ListInterface<Reward> searchRewardsByKeyword(String keyword) {
         ListInterface<Reward> results = new DoublyLinkedList<>();
         String lowerKeyword = keyword.toLowerCase();
@@ -476,11 +667,7 @@ public class LoyaltyController {
         return results;
     }
 
-    /**
-     * Rewards at or below LOW_STOCK_THRESHOLD (and still in stock) -
-     * used to automatically warn before someone tries to redeem something
-     * that's about to run out.
-     */
+    // Gets low-stock rewards.
     public ListInterface<Reward> getLowStockRewards() {
         ListInterface<Reward> lowStock = new DoublyLinkedList<>();
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -492,6 +679,7 @@ public class LoyaltyController {
         return lowStock;
     }
 
+    // Converts rewards to an array.
     private Reward[] toRewardArray() {
         Reward[] array = new Reward[rewardList.size()];
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -500,67 +688,66 @@ public class LoyaltyController {
         return array;
     }
 
-    /**
-     * sortBy: "price" (points required), "name" (alphabetical), or "stock" (quantity).
-     */
+    // Compares rewards for sorting.
     private int compareRewards(Reward a, Reward b, String sortBy) {
         return switch (sortBy.toLowerCase()) {
-            case "name" -> a.getRewardName().compareToIgnoreCase(b.getRewardName());
-            case "stock" -> Integer.compare(a.getQuantity(), b.getQuantity());
-            default -> Integer.compare(a.getPointsRequired(), b.getPointsRequired()); // "price"
+            case "name" ->
+                a.getRewardName().compareToIgnoreCase(b.getRewardName());
+            case "stock" ->
+                Integer.compare(a.getQuantity(), b.getQuantity());
+            default ->
+                Integer.compare(a.getPointsRequired(), b.getPointsRequired()); // "price"
         };
     }
 
-    /**
-     * Selection sort - repeatedly picks the smallest remaining element.
-     */
-    public ListInterface<Reward> sortRewardsSelectionSort(String sortBy) {
+    // Sorts the rewards.
+    public ListInterface<Reward> sortRewards(String sortBy) {
         Reward[] array = toRewardArray();
 
-        for (int i = 0; i < array.length - 1; i++) {
-            int minIndex = i;
-            for (int j = i + 1; j < array.length; j++) {
-                if (compareRewards(array[j], array[minIndex], sortBy) < 0) {
-                    minIndex = j;
-                }
+        for (int i = 1; i < array.length; i++) {
+            Reward current = array[i];
+            int j = i - 1;
+
+            while (j >= 0 && shouldComeAfter(array[j], current, sortBy)) {
+                array[j + 1] = array[j];
+                j--;
             }
-            Reward temp = array[i];
-            array[i] = array[minIndex];
-            array[minIndex] = temp;
+
+            array[j + 1] = current;
         }
 
         ListInterface<Reward> sorted = new DoublyLinkedList<>();
-        for (Reward r : array) {
-            sorted.add(r);
+
+        for (Reward reward : array) {
+            sorted.add(reward);
         }
+
         return sorted;
     }
 
-    /**
-     * Bubble sort - repeatedly swaps adjacent out-of-order pairs.
-     */
-    public ListInterface<Reward> sortRewardsBubbleSort(String sortBy) {
-        Reward[] array = toRewardArray();
+    // Checks the sorting order.
+    private boolean shouldComeAfter(Reward existing, Reward current, String sortBy) {
 
-        for (int i = 0; i < array.length - 1; i++) {
-            for (int j = 0; j < array.length - 1 - i; j++) {
-                if (compareRewards(array[j], array[j + 1], sortBy) > 0) {
-                    Reward temp = array[j];
-                    array[j] = array[j + 1];
-                    array[j + 1] = temp;
-                }
-            }
-        }
+        switch (sortBy.toLowerCase()) {
 
-        ListInterface<Reward> sorted = new DoublyLinkedList<>();
-        for (Reward r : array) {
-            sorted.add(r);
+            case "price":
+                return existing.getPointsRequired()
+                        < current.getPointsRequired();
+
+            case "name":
+                return existing.getRewardName()
+                        .compareToIgnoreCase(current.getRewardName()) > 0;
+
+            case "stock":
+                return existing.getQuantity()
+                        > current.getQuantity();
+
+            default:
+                return false;
         }
-        return sorted;
     }
 
-    // ───────────────────── Reward Redemption ─────────────────────
-
+    // Redeems a reward.
     public ControllerResult redeemReward(String redemptionId, String memberId, String rewardId) {
         Member member = memberController.findByKey(memberId);
         if (member == null) {
@@ -580,25 +767,17 @@ public class LoyaltyController {
             return ControllerResult.fail("Insufficient points. Required: "
                     + reward.getPointsRequired() + ", available: " + member.getPoints());
         }
-
-        // Deduct points from member
         int newPoints = member.getPoints() - reward.getPointsRequired();
         ControllerResult pointsResult = memberController.updatePoints(memberId, newPoints);
         if (!pointsResult.isOk()) {
             return pointsResult;
         }
-
-        // Decrement reward stock
         reward.setQuantity(reward.getQuantity() - 1);
         saveRewardsToFile();
-
-        // Record redemption
         RewardRedemption redemption = new RewardRedemption(
                 redemptionId, memberId, rewardId, reward.getPointsRequired(), LocalDate.now());
         redemptionList.add(redemption);
         saveRedemptionsToFile();
-
-        // Tier may change after points deduction
         checkAndApplyTierUpgrade(memberId);
 
         logTransaction(memberId, -reward.getPointsRequired(), "REDEEM", "Redeemed " + reward.getRewardName());
@@ -607,10 +786,12 @@ public class LoyaltyController {
                 + " for " + reward.getPointsRequired() + " points. Remaining balance: " + newPoints);
     }
 
+    // Returns redemption history.
     public ListInterface<RewardRedemption> viewRedemptionHistory() {
         return redemptionList;
     }
 
+    // Gets a member redemption history.
     public ListInterface<RewardRedemption> viewRedemptionHistoryByMember(String memberId) {
         ListInterface<RewardRedemption> results = new DoublyLinkedList<>();
         for (int i = 1; i <= redemptionList.size(); i++) {
@@ -622,15 +803,14 @@ public class LoyaltyController {
         return results;
     }
 
+    // Gets the total redemptions.
     public int getTotalRedemptions() {
         return redemptionList.size();
     }
 
-    /**
-     * One category name paired with how many times it's been redeemed.
-     * Mutable count so the simple tally loop below can increment in place.
-     */
+    // Stores a redemption count by category.
     public static class CategoryCount {
+
         public final String category;
         public int count;
 
@@ -640,18 +820,23 @@ public class LoyaltyController {
         }
     }
 
-    /**
-     * Tallies redemptions by reward category - a simple counting algorithm:
-     * one pass through the redemption log, looking up each reward's
-     * category and incrementing a running total for that category.
-     */
+    // Gets redemption statistics.
     public ListInterface<CategoryCount> getRedemptionStatsByCategory() {
+        return getRedemptionStatsByCategory(null);
+    }
+
+    public ListInterface<CategoryCount> getRedemptionStatsByCategory(String categoryFilter) {
         ListInterface<CategoryCount> stats = new DoublyLinkedList<>();
+        boolean hasFilter = categoryFilter != null && !categoryFilter.isBlank();
 
         for (int i = 1; i <= redemptionList.size(); i++) {
             RewardRedemption redemption = redemptionList.getEntry(i);
             Reward reward = findRewardById(redemption.getRewardId());
             String category = (reward != null) ? reward.getCategory() : "Unknown";
+
+            if (hasFilter && !category.equalsIgnoreCase(categoryFilter)) {
+                continue;
+            }
 
             CategoryCount existing = null;
             for (int j = 1; j <= stats.size(); j++) {
@@ -674,18 +859,12 @@ public class LoyaltyController {
         return stats;
     }
 
-    /**
-     * Generates the next Redemption ID automatically (RDM0001, RDM0002, ...)
-     * so the user never has to type - and can't mistype - an ID by hand.
-     */
+    // Generates the next redemption ID.
     public String generateNextRedemptionId() {
         return String.format("RDM%04d", redemptionList.size() + 1);
     }
 
-    /**
-     * Returns the most recent redemption, or null if there isn't one.
-     * Used to show a confirmation preview before undoing.
-     */
+    // Gets the latest redemption.
     public RewardRedemption getLastRedemption() {
         if (redemptionList.isEmpty()) {
             return null;
@@ -693,18 +872,7 @@ public class LoyaltyController {
         return redemptionList.getEntry(redemptionList.size());
     }
 
-    /**
-     * Reverses the most recent redemption: refunds the member's points,
-     * restocks the reward, re-checks their tier, and removes the record.
-     *
-     * This specifically removes from the TAIL of the list - the one
-     * operation a DoublyLinkedList does in O(1) that a plain ArrayList
-     * cannot (an ArrayList remove from the end is also O(1) actually,
-     * but removal from an arbitrary position requires shifting; the real
-     * win here is that DoublyLinkedList.remove() needs no shifting at all,
-     * regardless of where the entry sits - which is the core justification
-     * for choosing this ADT for a frequently changing redemption log).
-     */
+    // Undoes the latest redemption.
     public ControllerResult undoLastRedemption() {
         if (redemptionList.isEmpty()) {
             return ControllerResult.fail("No redemptions to undo.");
@@ -714,11 +882,34 @@ public class LoyaltyController {
         RewardRedemption last = redemptionList.getEntry(lastPosition);
 
         Member member = memberController.findByKey(last.getMemberId());
+
         if (member != null) {
-            int refundedPoints = member.getPoints() + last.getRedeemedPoints();
-            memberController.updatePoints(last.getMemberId(), refundedPoints);
+
+            long refundedPointsLong
+                    = (long) member.getPoints() + last.getRedeemedPoints();
+
+            if (refundedPointsLong > Integer.MAX_VALUE) {
+                return ControllerResult.fail(
+                        "Refund cannot be completed because the points balance would exceed the maximum allowed value.");
+            }
+
+            int refundedPoints = (int) refundedPointsLong;
+
+            ControllerResult pointsResult
+                    = memberController.updatePoints(
+                            last.getMemberId(),
+                            refundedPoints);
+
+            if (!pointsResult.isOk()) {
+                return pointsResult;
+            }
+
             checkAndApplyTierUpgrade(last.getMemberId());
-            logTransaction(last.getMemberId(), last.getRedeemedPoints(), "UNDO",
+
+            logTransaction(
+                    last.getMemberId(),
+                    last.getRedeemedPoints(),
+                    "UNDO",
                     "Refund - Undo " + last.getRedemptionId());
         }
 
@@ -735,33 +926,32 @@ public class LoyaltyController {
                 + ". Refunded " + last.getRedeemedPoints() + " points to " + last.getMemberId() + ".");
     }
 
-    // ───────────────────── Reports ─────────────────────
-
-    /**
-     * Returns the top N members ordered by reward points (descending).
-     * Uses a simple selection sort over a copy of the member list so the
-     * original data (owned by MemberController) is never mutated.
-     */
+    // Gets the top members by points.
     public ListInterface<Member> topMembersByPoints(int topN) {
-        ListInterface<Member> allMembers = memberController.getAll();
-        int total = allMembers.size();
+        return topMembersByPoints(topN, memberController.getAll());
+    }
+
+    // Sorts and returns top members.
+    private ListInterface<Member> topMembersByPoints(int topN, ListInterface<Member> source) {
+        int total = source.size();
 
         Member[] snapshot = new Member[total];
         for (int i = 1; i <= total; i++) {
-            snapshot[i - 1] = allMembers.getEntry(i);
+            snapshot[i - 1] = source.getEntry(i);
         }
+        for (int i = 1; i < snapshot.length; i++) {
 
-        // Selection sort, descending by points
-        for (int i = 0; i < snapshot.length - 1; i++) {
-            int maxIndex = i;
-            for (int j = i + 1; j < snapshot.length; j++) {
-                if (snapshot[j].getPoints() > snapshot[maxIndex].getPoints()) {
-                    maxIndex = j;
-                }
+            Member current = snapshot[i];
+            int j = i - 1;
+
+            while (j >= 0
+                    && snapshot[j].getPoints() < current.getPoints()) {
+
+                snapshot[j + 1] = snapshot[j];
+                j--;
             }
-            Member temp = snapshot[i];
-            snapshot[i] = snapshot[maxIndex];
-            snapshot[maxIndex] = temp;
+
+            snapshot[j + 1] = current;
         }
 
         ListInterface<Member> topMembers = new DoublyLinkedList<>();
@@ -772,10 +962,30 @@ public class LoyaltyController {
         return topMembers;
     }
 
-    /**
-     * Returns a count of members in each tier as an int[5]:
-     * [Silver, Gold, Elite, Diamond, Platinum]
-     */
+    // Filters members by tier and points.
+    public ListInterface<Member> getMembersFiltered(String tierFilter, int minPoints, int maxPoints) {
+        ListInterface<Member> all = memberController.getAll();
+        ListInterface<Member> filtered = new DoublyLinkedList<>();
+        boolean hasTierFilter = tierFilter != null && !tierFilter.isBlank();
+
+        for (int i = 1; i <= all.size(); i++) {
+            Member m = all.getEntry(i);
+            boolean tierOk = !hasTierFilter || m.getTier().equalsIgnoreCase(tierFilter);
+            boolean pointsOk = m.getPoints() >= minPoints && m.getPoints() <= maxPoints;
+            if (tierOk && pointsOk) {
+                filtered.add(m);
+            }
+        }
+        return filtered;
+    }
+
+    // Creates the member loyalty report.
+    public ListInterface<Member> getMemberLoyaltyReport(String tierFilter, int minPoints, int maxPoints) {
+        ListInterface<Member> filtered = getMembersFiltered(tierFilter, minPoints, maxPoints);
+        return topMembersByPoints(filtered.size(), filtered);
+    }
+
+    // Counts members in each tier.
     public int[] membershipTierDistribution() {
         int[] counts = new int[5]; // Silver, Gold, Elite, Diamond, Platinum
         ListInterface<Member> allMembers = memberController.getAll();
@@ -783,23 +993,26 @@ public class LoyaltyController {
         for (int i = 1; i <= allMembers.size(); i++) {
             String tier = allMembers.getEntry(i).getTier();
             switch (tier) {
-                case "Silver" -> counts[0]++;
-                case "Gold" -> counts[1]++;
-                case "Elite" -> counts[2]++;
-                case "Diamond" -> counts[3]++;
-                case "Platinum" -> counts[4]++;
-                default -> { /* unknown tier, ignore */ }
+                case "Silver" ->
+                    counts[0]++;
+                case "Gold" ->
+                    counts[1]++;
+                case "Elite" ->
+                    counts[2]++;
+                case "Diamond" ->
+                    counts[3]++;
+                case "Platinum" ->
+                    counts[4]++;
+                default -> {
+                }
             }
         }
         return counts;
     }
 
-    /**
-     * One reward name paired with how many times it's been redeemed -
-     * same counting-algorithm pattern as CategoryCount, just grouped by
-     * individual reward instead of category.
-     */
+    // Stores a reward redemption count.
     public static class RewardPopularity {
+
         public final String rewardName;
         public int count;
 
@@ -809,6 +1022,7 @@ public class LoyaltyController {
         }
     }
 
+    // Gets reward popularity statistics.
     public ListInterface<RewardPopularity> getRewardPopularity() {
         ListInterface<RewardPopularity> stats = new DoublyLinkedList<>();
 
@@ -838,16 +1052,17 @@ public class LoyaltyController {
         return stats;
     }
 
-    // ───────────────────── System Statistics ─────────────────────
-
+    // Gets the total member count.
     public int getTotalMembers() {
         return memberController.getAll().size();
     }
 
+    // Gets the total reward types.
     public int getTotalRewardTypes() {
         return rewardList.size();
     }
 
+    // Gets total points across members.
     public int getTotalPointsAcrossMembers() {
         int total = 0;
         ListInterface<Member> all = memberController.getAll();
@@ -857,9 +1072,7 @@ public class LoyaltyController {
         return total;
     }
 
-    /**
-     * The category with the most redemptions, or "N/A" if there aren't any yet.
-     */
+    // Gets the most popular category.
     public String getMostPopularCategory() {
         ListInterface<CategoryCount> stats = getRedemptionStatsByCategory();
         if (stats.isEmpty()) {
@@ -875,4 +1088,5 @@ public class LoyaltyController {
         }
         return best.category;
     }
+
 }
