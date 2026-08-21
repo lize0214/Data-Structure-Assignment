@@ -8,10 +8,11 @@ import java.time.LocalDate;
 public class Booking {
     private String confirmationNo;
     private Guest guest;
+    private Member member;
     private Room room;
-    // Keep the foreign-key values separately so legacy bookings can still be
-    // written back when the referenced guest or room record no longer exists.
-    private String guestId;
+    // Keep foreign-key values separately so unresolved legacy records can still
+    // be written back even if the referenced holder or room no longer exists.
+    private String holderId;
     private String roomNo;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
@@ -32,8 +33,30 @@ public class Booking {
                    BookingType bookingType) {
         this.confirmationNo = confirmationNo;
         this.guest = guest;
+        this.member = null;
         this.room = room;
-        this.guestId = guest == null ? null : guest.getGuestId();
+        this.holderId = guest == null ? null : guest.getGuestId();
+        this.roomNo = room == null ? null : room.getRoomNo();
+        this.checkInDate = checkInDate;
+        this.checkOutDate = checkOutDate;
+        this.bookingStatus = bookingStatus;
+        this.bookingType = bookingType;
+    }
+
+    public Booking(String confirmationNo, Member member, Room room,
+                   LocalDate checkInDate, LocalDate checkOutDate, String bookingStatus) {
+        this(confirmationNo, member, room, checkInDate, checkOutDate,
+                bookingStatus, BookingType.VIP_ALLOCATION);
+    }
+
+    public Booking(String confirmationNo, Member member, Room room,
+                   LocalDate checkInDate, LocalDate checkOutDate, String bookingStatus,
+                   BookingType bookingType) {
+        this.confirmationNo = confirmationNo;
+        this.guest = null;
+        this.member = member;
+        this.room = room;
+        this.holderId = member == null ? null : member.getMemberId();
         this.roomNo = room == null ? null : room.getRoomNo();
         this.checkInDate = checkInDate;
         this.checkOutDate = checkOutDate;
@@ -47,7 +70,23 @@ public class Booking {
     public Guest getGuest() { return guest; }
     public void setGuest(Guest guest) {
         this.guest = guest;
-        if (guest != null) this.guestId = guest.getGuestId();
+        if (guest != null) {
+            this.member = null;
+            this.holderId = guest.getGuestId();
+        } else if (member == null) {
+            this.holderId = null;
+        }
+    }
+
+    public Member getMember() { return member; }
+    public void setMember(Member member) {
+        this.member = member;
+        if (member != null) {
+            this.guest = null;
+            this.holderId = member.getMemberId();
+        } else if (guest == null) {
+            this.holderId = null;
+        }
     }
 
     public Room getRoom() { return room; }
@@ -56,7 +95,29 @@ public class Booking {
         if (room != null) this.roomNo = room.getRoomNo();
     }
 
-    public String getGuestId() { return guestId; }
+    /** Returns the Guest ID for Guest bookings, or null for Member bookings. */
+    public String getGuestId() {
+        return isMemberBooking() ? null : holderId;
+    }
+
+    /** Returns the Member ID for Member bookings, or null for Guest bookings. */
+    public String getMemberId() {
+        return isMemberBooking() ? holderId : null;
+    }
+
+    public String getHolderId() { return holderId; }
+
+    public String getHolderName() {
+        if (member != null) return member.getName();
+        if (guest != null) return guest.getName();
+        return holderId == null || holderId.isBlank() ? "Unknown" : holderId;
+    }
+
+    public boolean isMemberBooking() {
+        return member != null || (guest == null && holderId != null
+                && holderId.toUpperCase().startsWith("M"));
+    }
+
     public String getRoomNo() { return roomNo; }
 
     public LocalDate getCheckInDate() { return checkInDate; }
@@ -71,11 +132,14 @@ public class Booking {
     public BookingType getBookingType() { return bookingType; }
     public void setBookingType(BookingType bookingType) { this.bookingType = bookingType; }
 
-    // Note: Only guestId and roomNo can be obtained here; a complete Booking object cannot be created directly.
-    // The corresponding Guest and Room objects must first be retrieved in the Controller layer,
-    // and then the Booking object can be constructed manually.
-    // Format: confirmationNo,guestId,roomNo,checkInDate,checkOutDate,bookingStatus[,bookingType]
+    // Existing Guest rows remain unchanged. The second column may now contain
+    // either a Guest ID (G...) or Member ID (M...).
+    // Format: confirmationNo,holderId,roomNo,checkInDate,checkOutDate,bookingStatus[,bookingType]
     public static Booking fromCsvLine(String line, Guest guest, Room room) {
+        return fromCsvLine(line, guest, null, room);
+    }
+
+    public static Booking fromCsvLine(String line, Guest guest, Member member, Room room) {
         String[] parts = line.split(",");
         if (parts.length != 6 && parts.length != 7) {
             throw new IllegalArgumentException("Invalid Booking data format: " + line);
@@ -83,34 +147,36 @@ public class Booking {
         BookingType type = parts.length == 7
                 ? BookingType.valueOf(parts[6].trim().toUpperCase())
                 : BookingType.STANDARD;
-        Booking booking = new Booking(
-                parts[0].trim(),
-                guest,
-                room,
-                LocalDate.parse(parts[3].trim()),
-                LocalDate.parse(parts[4].trim()),
-                parts[5].trim(),
-                type
-        );
-        // Preserve the IDs from the booking file even if lookup returned null.
-        booking.guestId = parts[1].trim();
+        String holderId = parts[1].trim();
+        Booking booking;
+        if (member != null || holderId.toUpperCase().startsWith("M")) {
+            booking = new Booking(parts[0].trim(), member, room,
+                    LocalDate.parse(parts[3].trim()), LocalDate.parse(parts[4].trim()),
+                    parts[5].trim(), type);
+        } else {
+            booking = new Booking(parts[0].trim(), guest, room,
+                    LocalDate.parse(parts[3].trim()), LocalDate.parse(parts[4].trim()),
+                    parts[5].trim(), type);
+        }
+        // Preserve IDs from the file even when a referenced entity is missing.
+        booking.holderId = holderId;
         booking.roomNo = parts[2].trim();
         return booking;
     }
 
     public String toCsvLine() {
-        if (guestId == null || guestId.isEmpty() || roomNo == null || roomNo.isEmpty()) {
+        if (holderId == null || holderId.isEmpty() || roomNo == null || roomNo.isEmpty()) {
             throw new IllegalStateException("Booking " + confirmationNo
-                    + " is missing its guest ID or room number.");
+                    + " is missing its holder ID or room number.");
         }
-        return confirmationNo + "," + guestId + "," + roomNo + "," +
+        return confirmationNo + "," + holderId + "," + roomNo + "," +
                 checkInDate + "," + checkOutDate + "," + bookingStatus + "," + bookingType;
     }
 
     @Override
     public String toString() {
-        String guestDisplay = guest == null ? guestId : guest.getName();
         return "Booking{" + confirmationNo + ", Type:" + bookingType
-                + ", Guest:" + guestDisplay + ", Room:" + roomNo + "}";
+                + ", Holder:" + getHolderName() + " (" + holderId + ")"
+                + ", Room:" + roomNo + "}";
     }
 }

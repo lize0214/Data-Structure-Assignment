@@ -121,7 +121,7 @@ public class FrontDeskController {
         sb.append(String.format(
                 "%-10s %-20s %-8s %-16s %s%n",
                 booking.getConfirmationNo(),
-                booking.getGuest().getName(),
+                booking.getHolderName(),
                 room.getRoomNo(),
                 room.getRoomType(),
                 room.getStatus()
@@ -179,7 +179,7 @@ public class FrontDeskController {
         sb.append(String.format(
                 "%-17s: %s%n",
                 "Guest Name",
-                booking.getGuest().getName()
+                booking.getHolderName()
         ));
 
         sb.append(String.format(
@@ -336,8 +336,8 @@ public class FrontDeskController {
             Booking booking =
                     all.getEntry(i);
 
-            if (booking.getGuest()
-                    .getName()
+            if (booking
+                    .getHolderName()
                     .toLowerCase()
                     .contains(needle)) {
 
@@ -411,7 +411,7 @@ public class FrontDeskController {
             sb.append(String.format(
                     "%-10s %-20s %-8s %-12s %-12s %s -> %s%n",
                     b.getConfirmationNo(),
-                    b.getGuest().getName(),
+                    b.getHolderName(),
                     b.getRoom().getRoomNo(),
                     b.getRoom().getRoomType(),
                     b.getBookingStatus(),
@@ -633,7 +633,7 @@ public class FrontDeskController {
             sb.append(String.format(
                     "%-10s %-20s %-8d %-12s %.2f%n",
                     b.getConfirmationNo(),
-                    b.getGuest().getName(),
+                    b.getHolderName(),
                     nightsBetween(b),
                     b.getBookingStatus(),
                     total
@@ -744,7 +744,7 @@ public class FrontDeskController {
                     String.format(
                             "%-10s %-20s %-12s %.2f%n",
                             b.getConfirmationNo(),
-                            b.getGuest().getName(),
+                            b.getHolderName(),
                             b.getBookingStatus(),
                             due
                     )
@@ -929,7 +929,7 @@ public class FrontDeskController {
                 String.format(
                         "%-10s %-20s %-8s %-12s %-12s %s -> %s%n",
                         booking.getConfirmationNo(),
-                        booking.getGuest().getName(),
+                        booking.getHolderName(),
                         booking.getRoom().getRoomNo(),
                         booking.getRoom().getRoomType(),
                         booking.getBookingStatus(),
@@ -1023,7 +1023,7 @@ public class FrontDeskController {
                 sb.append(String.format(
                         "%-10s %-20s %-8s %-12s%n",
                         booking.getConfirmationNo(),
-                        booking.getGuest().getName(),
+                        booking.getHolderName(),
                         booking.getRoom().getRoomNo(),
                         booking.getBookingStatus()
                 ));
@@ -1081,7 +1081,7 @@ public class FrontDeskController {
                 sb.append(String.format(
                         "%-10s %-20s %-8s %-12s%n",
                         booking.getConfirmationNo(),
-                        booking.getGuest().getName(),
+                        booking.getHolderName(),
                         booking.getRoom().getRoomNo(),
                         booking.getBookingStatus()
                 ));

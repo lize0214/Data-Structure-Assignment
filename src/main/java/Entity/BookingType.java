@@ -7,5 +7,6 @@ package Entity;
  */
 public enum BookingType {
     STANDARD,
-    WALK_IN
+    WALK_IN,
+    VIP_ALLOCATION
 }

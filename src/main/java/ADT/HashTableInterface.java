@@ -17,5 +17,6 @@ public interface HashTableInterface<K, V> {
     boolean isEmpty();
     int getSize();
     boolean contains(K key);
+    ListInterface<K> keys();
     ListInterface<V> values();
 }
