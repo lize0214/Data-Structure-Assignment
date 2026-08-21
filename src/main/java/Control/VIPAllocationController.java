@@ -1,6 +1,8 @@
 package Control;
 
 import ADT.HeapPriorityQueue;
+import ADT.HashTable;
+import ADT.HashTableInterface;
 import ADT.ListInterface;
 import Entity.*;
 import Utility.ControllerResult;
@@ -10,11 +12,6 @@ import Utility.ValidationUtility;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 /**
  * @author Chua Li Ze
  */
@@ -29,6 +26,11 @@ import java.util.Map;
  */
 public class VIPAllocationController {
 
+    @FunctionalInterface
+    private interface ItemComparator<T> {
+        int compare(T first, T second);
+    }
+
     private static final String VIP_QUEUE_FILE = "data/vip_queue.txt";
     private static final String VIP_ALLOCATION_HISTORY_FILE = "data/vip_allocation_history.txt";
     private static final String[] ROOM_TYPES = {"Single", "Deluxe", "Suite", "Presidential"};
@@ -39,28 +41,32 @@ public class VIPAllocationController {
     private final HeapPriorityQueue<VIPQueueEntry> vipQueue;
     private final MemberController memberController;
     private final RoomController roomController;
-    private final GuestController guestController;
     private final BookingController bookingController;
-    private final List<VIPAllocationRecord> allocationHistory;
+    private final ListInterface<VIPAllocationRecord> allocationHistory;
 
     /**
      * Constructs the VIP allocation controller with all required dependencies.
      *
      * @param memberController  controller for member lookups
      * @param roomController    controller for room queries and status updates
-     * @param guestController   controller for guest lookups
+     * @param guestController   retained for compatibility; VIP bookings now use Member directly
      * @param bookingController controller for creating booking records
      */
     public VIPAllocationController(MemberController memberController,
                                    RoomController roomController,
                                    GuestController guestController,
                                    BookingController bookingController) {
+        this(memberController, roomController, bookingController);
+    }
+
+    public VIPAllocationController(MemberController memberController,
+                                   RoomController roomController,
+                                   BookingController bookingController) {
         this.memberController = memberController;
         this.roomController = roomController;
-        this.guestController = guestController;
         this.bookingController = bookingController;
         this.vipQueue = new HeapPriorityQueue<>();
-        this.allocationHistory = new ArrayList<>();
+        this.allocationHistory = new ADT.ArrayList<>();
         loadQueueFromFile();
         loadAllocationHistoryFromFile();
     }
@@ -129,7 +135,7 @@ public class VIPAllocationController {
      *   <li>Check queue is not empty</li>
      *   <li>Dequeue the highest-priority entry</li>
      *   <li>Find an available room (prefer matching preferredRoomType)</li>
-     *   <li>Find a guest matching the member (by name)</li>
+     *   <li>Resolve the Member that owns the VIP queue entry</li>
      *   <li>Update room status to Occupied</li>
      *   <li>Create a booking record</li>
      *   <li>Persist queue to file</li>
@@ -161,13 +167,11 @@ public class VIPAllocationController {
             // If no matching room, fall back to the already-found room
         }
 
-        // Find a guest matching this member (by name)
+        // A VIP booking is owned directly by the loyalty Member.
         Member member = memberController.findByKey(entry.getMemberId());
-        Guest guest = findGuestByMember(member);
-        if (guest == null) {
+        if (member == null) {
             vipQueue.enqueue(entry);
-            return ControllerResult.fail("No guest record found for member " + entry.getMemberId()
-                    + " (" + member.getName() + "). Please register the guest first.");
+            return ControllerResult.fail("Member no longer exists: " + entry.getMemberId());
         }
 
         // Update room status to Occupied
@@ -181,8 +185,8 @@ public class VIPAllocationController {
         // Create booking record
         String confirmationNo = generateConfirmationNo();
         LocalDate today = LocalDate.now();
-        Booking booking = new Booking(confirmationNo, guest, availableRoom,
-                today, today.plusDays(1), "CheckedIn", BookingType.STANDARD);
+        Booking booking = new Booking(confirmationNo, member, availableRoom,
+                today, today.plusDays(1), "CheckedIn", BookingType.VIP_ALLOCATION);
         ControllerResult bookingResult = bookingController.add(booking);
         if (!bookingResult.isOk()) {
             // Rollback room status
@@ -214,7 +218,7 @@ public class VIPAllocationController {
                 "Allocated Room %s (%s) to %s [Member:%s, %s, Priority:%s] | Confirmation: %s",
                 availableRoom.getRoomNo(),
                 availableRoom.getRoomType(),
-                guest.getName(),
+                member.getName(),
                 entry.getMemberId(),
                 entry.getMemberTier(),
                 entry.getMemberTier(),
@@ -232,9 +236,9 @@ public class VIPAllocationController {
      *
      * @return a list of VIPQueueEntry in priority order (highest first)
      */
-    public List<VIPQueueEntry> viewQueue() {
-        List<VIPQueueEntry> snapshot = new ArrayList<>();
-        List<VIPQueueEntry> temp = new ArrayList<>();
+    public ListInterface<VIPQueueEntry> viewQueue() {
+        ListInterface<VIPQueueEntry> snapshot = new ADT.ArrayList<>();
+        ListInterface<VIPQueueEntry> temp = new ADT.ArrayList<>();
 
         // Dequeue all into temp (comes out highest-priority first)
         while (!vipQueue.isEmpty()) {
@@ -244,9 +248,7 @@ public class VIPAllocationController {
         }
 
         // Re-enqueue all entries
-        for (VIPQueueEntry entry : temp) {
-            vipQueue.enqueue(entry);
-        }
+        for (int i = 1; i <= temp.size(); i++) vipQueue.enqueue(temp.getEntry(i));
 
         return snapshot; // already in priority order from dequeue sequence
     }
@@ -271,16 +273,14 @@ public class VIPAllocationController {
         }
 
         // Rebuild heap without the target entry
-        List<VIPQueueEntry> allEntries = new ArrayList<>();
+        ListInterface<VIPQueueEntry> allEntries = new ADT.ArrayList<>();
         while (!vipQueue.isEmpty()) {
             VIPQueueEntry entry = vipQueue.dequeue();
             if (!entry.getMemberId().equals(memberId.trim())) {
                 allEntries.add(entry);
             }
         }
-        for (VIPQueueEntry entry : allEntries) {
-            vipQueue.enqueue(entry);
-        }
+        for (int i = 1; i <= allEntries.size(); i++) vipQueue.enqueue(allEntries.getEntry(i));
 
         saveQueueToFile();
         return ControllerResult.success("Member " + memberId + " removed from VIP queue");
@@ -316,7 +316,7 @@ public class VIPAllocationController {
         }
 
         // Rebuild heap with updated entry
-        List<VIPQueueEntry> allEntries = new ArrayList<>();
+        ListInterface<VIPQueueEntry> allEntries = new ADT.ArrayList<>();
         while (!vipQueue.isEmpty()) {
             VIPQueueEntry entry = vipQueue.dequeue();
             if (entry.getMemberId().equals(memberId.trim())) {
@@ -326,9 +326,7 @@ public class VIPAllocationController {
             }
             allEntries.add(entry);
         }
-        for (VIPQueueEntry entry : allEntries) {
-            vipQueue.enqueue(entry);
-        }
+        for (int i = 1; i <= allEntries.size(); i++) vipQueue.enqueue(allEntries.getEntry(i));
 
         saveQueueToFile();
         return ControllerResult.success("Priority recalculated for " + memberId
@@ -342,8 +340,8 @@ public class VIPAllocationController {
      *
      * @return list of allocatable rooms
      */
-    public List<Room> viewAvailableRooms() {
-        List<Room> available = new ArrayList<>();
+    public ListInterface<Room> viewAvailableRooms() {
+        ListInterface<Room> available = new ADT.ArrayList<>();
         ListInterface<Room> allRooms = roomController.getAll();
         for (int i = 1; i <= allRooms.size(); i++) {
             Room room = allRooms.getEntry(i);
@@ -364,26 +362,50 @@ public class VIPAllocationController {
 
     // ───────────────────── Reports ─────────────────────
 
-    /** Builds a point-in-time report of VIP demand and allocatable room supply. */
+    /** Builds an unfiltered point-in-time report of VIP demand and room supply. */
     public VIPQueueDemandReport getQueueDemandReport() {
+        return getQueueDemandReport(null, null, null, 0, "Priority");
+    }
+
+    /**
+     * Builds a point-in-time demand report using a linear search/filter pass,
+     * followed by merge sort. Blank criteria mean "all".
+     */
+    public VIPQueueDemandReport getQueueDemandReport(String memberKeyword,
+            String memberTier, String preferredRoomType, long minimumWaitingMinutes,
+            String sortBy) {
         LocalDateTime generatedAt = LocalDateTime.now();
-        List<VIPQueueEntry> queue = viewQueue();
-        List<VIPQueueDemandReport.QueueRow> rows = new ArrayList<>();
-        Map<String, Integer> tierCounts = createTierCountMap();
-        Map<String, Integer> demandCounts = createRoomTypeCountMap(true);
-        Map<String, Integer> availableCounts = createRoomTypeCountMap(true);
+        ListInterface<VIPQueueEntry> queue = viewQueue();
+        ListInterface<VIPQueueDemandReport.QueueRow> rows = new ADT.ArrayList<>();
+        HashTableInterface<String, Integer> tierCounts = createTierCountMap();
+        HashTableInterface<String, Integer> demandCounts = createRoomTypeCountMap(true);
+        HashTableInterface<String, Integer> availableCounts = createRoomTypeCountMap(true);
 
         long totalWaitingMinutes = 0;
         long longestWaitingMinutes = 0;
-        int rank = 1;
-        for (VIPQueueEntry entry : queue) {
+        String keyword = normalizeFilter(memberKeyword);
+        String tierFilter = normalizeFilter(memberTier);
+        String roomFilter = normalizeFilter(preferredRoomType);
+        long safeMinimumWaiting = Math.max(0, minimumWaitingMinutes);
+
+        // Linear search: inspect every queue entry while applying all criteria.
+        for (int queueIndex = 1; queueIndex <= queue.size(); queueIndex++) {
+            VIPQueueEntry entry = queue.getEntry(queueIndex);
             Member member = memberController.findByKey(entry.getMemberId());
             String memberName = member == null ? "Unknown" : member.getName();
             String preferredType = canonicalRoomType(entry.getPreferredRoomType());
             long waitingMinutes = waitingMinutesBetween(entry.getRegistrationTime(), generatedAt);
 
+            if (!containsIgnoreCase(entry.getMemberId(), keyword)
+                    && !containsIgnoreCase(memberName, keyword)) continue;
+            if (tierFilter != null
+                    && !entry.getMemberTier().equalsIgnoreCase(tierFilter)) continue;
+            if (roomFilter != null
+                    && !preferredType.equalsIgnoreCase(roomFilter)) continue;
+            if (waitingMinutes < safeMinimumWaiting) continue;
+
             rows.add(new VIPQueueDemandReport.QueueRow(
-                    rank++, entry.getMemberId(), memberName, entry.getMemberTier(),
+                    0, entry.getMemberId(), memberName, entry.getMemberTier(),
                     entry.getTierPriority(), preferredType, entry.getRegistrationTime(), waitingMinutes));
             incrementCount(tierCounts, entry.getMemberTier());
             incrementCount(demandCounts, preferredType);
@@ -391,20 +413,37 @@ public class VIPAllocationController {
             longestWaitingMinutes = Math.max(longestWaitingMinutes, waitingMinutes);
         }
 
+        ItemComparator<VIPQueueDemandReport.QueueRow> queueComparator =
+                queueReportComparator(sortBy);
+        mergeSort(rows, queueComparator);
+        ListInterface<VIPQueueDemandReport.QueueRow> rankedRows = new ADT.ArrayList<>();
+        for (int i = 1; i <= rows.size(); i++) {
+            VIPQueueDemandReport.QueueRow row = rows.getEntry(i);
+            rankedRows.add(new VIPQueueDemandReport.QueueRow(
+                    i, row.memberId(), row.memberName(), row.memberTier(), row.priority(),
+                    row.preferredRoomType(), row.registrationTime(), row.waitingMinutes()));
+        }
+        rows = rankedRows;
+
         int totalAvailable = 0;
-        for (Room room : viewAvailableRooms()) {
+        ListInterface<Room> availableRooms = viewAvailableRooms();
+        for (int i = 1; i <= availableRooms.size(); i++) {
+            Room room = availableRooms.getEntry(i);
             incrementCount(availableCounts, canonicalRoomType(room.getRoomType()));
             totalAvailable++;
         }
-        availableCounts.put("Any", totalAvailable);
+        availableCounts.insert("Any", totalAvailable);
 
-        List<VIPQueueDemandReport.RoomDemandRow> demandRows = new ArrayList<>();
-        for (String roomType : demandCounts.keySet()) {
-            int demand = demandCounts.get(roomType);
-            int available = availableCounts.getOrDefault(roomType, 0);
+        ListInterface<VIPQueueDemandReport.RoomDemandRow> demandRows = new ADT.ArrayList<>();
+        for (String roomType : ROOM_TYPES) {
+            int demand = getCount(demandCounts, roomType);
+            int available = getCount(availableCounts, roomType);
             demandRows.add(new VIPQueueDemandReport.RoomDemandRow(
                     roomType, demand, available, Math.max(0, demand - available)));
         }
+        int anyDemand = getCount(demandCounts, "Any");
+        demandRows.add(new VIPQueueDemandReport.RoomDemandRow(
+                "Any", anyDemand, totalAvailable, Math.max(0, anyDemand - totalAvailable)));
 
         double averageWaitingMinutes = rows.isEmpty()
                 ? 0.0 : totalWaitingMinutes / (double) rows.size();
@@ -418,22 +457,51 @@ public class VIPAllocationController {
      */
     public VIPAllocationPerformanceReport getAllocationPerformanceReport(
             LocalDate fromDate, LocalDate toDate) {
+        return getAllocationPerformanceReport(fromDate, toDate, null, null,
+                null, null, 0, "Latest allocation");
+    }
+
+    /**
+     * Builds a historical performance report with combined date, keyword, tier,
+     * room, preference-match and waiting-time criteria. A linear search/filter
+     * pass is followed by merge sort using the management-selected ordering.
+     */
+    public VIPAllocationPerformanceReport getAllocationPerformanceReport(
+            LocalDate fromDate, LocalDate toDate, String allocationKeyword,
+            String memberTier, String allocatedRoomType, Boolean preferenceMatched,
+            long minimumWaitingMinutes, String sortBy) {
         if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
             throw new IllegalArgumentException("Report start date cannot be after the end date.");
         }
 
-        List<VIPAllocationRecord> filtered = new ArrayList<>();
-        Map<String, Integer> tierCounts = createTierCountMap();
-        Map<String, Integer> roomTypeCounts = createRoomTypeCountMap(false);
+        ListInterface<VIPAllocationRecord> filtered = new ADT.ArrayList<>();
+        HashTableInterface<String, Integer> tierCounts = createTierCountMap();
+        HashTableInterface<String, Integer> roomTypeCounts = createRoomTypeCountMap(false);
         long totalWaitingMinutes = 0;
         long longestWaitingMinutes = 0;
         int preferenceRequestCount = 0;
         int preferenceMatchCount = 0;
+        String keyword = normalizeFilter(allocationKeyword);
+        String tierFilter = normalizeFilter(memberTier);
+        String roomFilter = normalizeFilter(allocatedRoomType);
+        long safeMinimumWaiting = Math.max(0, minimumWaitingMinutes);
 
-        for (VIPAllocationRecord record : allocationHistory) {
+        // Linear search: scan history once and apply every selected criterion.
+        for (int historyIndex = 1; historyIndex <= allocationHistory.size(); historyIndex++) {
+            VIPAllocationRecord record = allocationHistory.getEntry(historyIndex);
             LocalDate allocationDate = record.getAllocationTime().toLocalDate();
             if (fromDate != null && allocationDate.isBefore(fromDate)) continue;
             if (toDate != null && allocationDate.isAfter(toDate)) continue;
+            if (!containsIgnoreCase(record.getConfirmationNo(), keyword)
+                    && !containsIgnoreCase(record.getMemberId(), keyword)) continue;
+            if (tierFilter != null
+                    && !record.getMemberTier().equalsIgnoreCase(tierFilter)) continue;
+            if (roomFilter != null
+                    && !record.getAllocatedRoomType().equalsIgnoreCase(roomFilter)) continue;
+            if (Boolean.TRUE.equals(preferenceMatched) && !record.isPreferenceMatched()) continue;
+            if (Boolean.FALSE.equals(preferenceMatched)
+                    && (!record.hasRoomPreference() || record.isPreferenceMatched())) continue;
+            if (record.getWaitingMinutes() < safeMinimumWaiting) continue;
 
             filtered.add(record);
             incrementCount(tierCounts, record.getMemberTier());
@@ -446,7 +514,7 @@ public class VIPAllocationController {
             }
         }
 
-        filtered.sort(Comparator.comparing(VIPAllocationRecord::getAllocationTime).reversed());
+        mergeSort(filtered, allocationReportComparator(sortBy));
         double averageWaitingMinutes = filtered.isEmpty()
                 ? 0.0 : totalWaitingMinutes / (double) filtered.size();
         return new VIPAllocationPerformanceReport(fromDate, toDate, filtered,
@@ -495,21 +563,19 @@ public class VIPAllocationController {
      */
     private void saveQueueToFile() {
         // Drain the heap into a list, then rebuild and write
-        List<VIPQueueEntry> entries = new ArrayList<>();
+        ListInterface<VIPQueueEntry> entries = new ADT.ArrayList<>();
         while (!vipQueue.isEmpty()) {
             entries.add(vipQueue.dequeue());
         }
 
         String[] lines = new String[entries.size()];
-        for (int i = 0; i < entries.size(); i++) {
-            lines[i] = entries.get(i).toCsvLine();
+        for (int i = 1; i <= entries.size(); i++) {
+            lines[i - 1] = entries.getEntry(i).toCsvLine();
         }
         FileUtility.writeAllLines(VIP_QUEUE_FILE, lines);
 
         // Rebuild the heap from the saved entries
-        for (VIPQueueEntry entry : entries) {
-            vipQueue.enqueue(entry);
-        }
+        for (int i = 1; i <= entries.size(); i++) vipQueue.enqueue(entries.getEntry(i));
     }
 
     // ───────────────────── Private Helpers ─────────────────────
@@ -550,25 +616,6 @@ public class VIPAllocationController {
     }
 
     /**
-     * Finds a Guest record that matches the given Member by name.
-     * Iterates all guests and returns the first one with a matching name.
-     *
-     * @param member the member to find a guest for
-     * @return the matching guest, or null if none found
-     */
-    private Guest findGuestByMember(Member member) {
-        if (member == null) return null;
-        ListInterface<Guest> allGuests = guestController.getAll();
-        for (int i = 1; i <= allGuests.size(); i++) {
-            Guest guest = allGuests.getEntry(i);
-            if (guest.getName().equalsIgnoreCase(member.getName())) {
-                return guest;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Finds a VIPQueueEntry in the heap by member ID.
      * Since a heap doesn't support O(1) lookup, we drain, search, and rebuild.
      *
@@ -577,7 +624,7 @@ public class VIPAllocationController {
      */
     private VIPQueueEntry findEntryByMemberId(String memberId) {
         VIPQueueEntry found = null;
-        List<VIPQueueEntry> temp = new ArrayList<>();
+        ListInterface<VIPQueueEntry> temp = new ADT.ArrayList<>();
 
         while (!vipQueue.isEmpty()) {
             VIPQueueEntry entry = vipQueue.dequeue();
@@ -588,9 +635,7 @@ public class VIPAllocationController {
         }
 
         // Rebuild heap
-        for (VIPQueueEntry entry : temp) {
-            vipQueue.enqueue(entry);
-        }
+        for (int i = 1; i <= temp.size(); i++) vipQueue.enqueue(temp.getEntry(i));
 
         return found;
     }
@@ -607,18 +652,111 @@ public class VIPAllocationController {
         return Duration.between(start, end).toMinutes();
     }
 
-    private Map<String, Integer> createTierCountMap() {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("Platinum", 0);
-        counts.put("Diamond", 0);
-        counts.put("Elite", 0);
+    private String normalizeFilter(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
+    }
+
+    /** Null/blank keyword matches every value; otherwise performs substring search. */
+    private boolean containsIgnoreCase(String value, String keyword) {
+        return keyword == null || (value != null
+                && value.toLowerCase().contains(keyword.toLowerCase()));
+    }
+
+    private ItemComparator<VIPQueueDemandReport.QueueRow> queueReportComparator(String sortBy) {
+        String option = sortBy == null ? "" : sortBy.trim().toLowerCase();
+        return switch (option) {
+            case "longest waiting" -> (first, second) -> {
+                int result = Long.compare(second.waitingMinutes(), first.waitingMinutes());
+                return result != 0 ? result : first.memberId().compareTo(second.memberId());
+            };
+            case "member name" -> (first, second) -> {
+                int result = first.memberName().compareToIgnoreCase(second.memberName());
+                return result != 0 ? result : first.memberId().compareTo(second.memberId());
+            };
+            case "room preference" -> (first, second) -> {
+                int result = first.preferredRoomType()
+                        .compareToIgnoreCase(second.preferredRoomType());
+                return result != 0 ? result : Integer.compare(second.priority(), first.priority());
+            };
+            default -> (first, second) -> {
+                int result = Integer.compare(second.priority(), first.priority());
+                return result != 0 ? result
+                        : first.registrationTime().compareTo(second.registrationTime());
+            };
+        };
+    }
+
+    private ItemComparator<VIPAllocationRecord> allocationReportComparator(String sortBy) {
+        String option = sortBy == null ? "" : sortBy.trim().toLowerCase();
+        return switch (option) {
+            case "longest waiting" -> (first, second) -> {
+                int result = Long.compare(second.getWaitingMinutes(), first.getWaitingMinutes());
+                return result != 0 ? result
+                        : second.getAllocationTime().compareTo(first.getAllocationTime());
+            };
+            case "member id" -> (first, second) -> {
+                int result = first.getMemberId().compareToIgnoreCase(second.getMemberId());
+                return result != 0 ? result
+                        : second.getAllocationTime().compareTo(first.getAllocationTime());
+            };
+            case "tier priority" -> (first, second) -> {
+                int result = Integer.compare(
+                        VIPQueueEntry.tierToPriority(second.getMemberTier()),
+                        VIPQueueEntry.tierToPriority(first.getMemberTier()));
+                return result != 0 ? result
+                        : second.getAllocationTime().compareTo(first.getAllocationTime());
+            };
+            default -> (first, second) ->
+                    second.getAllocationTime().compareTo(first.getAllocationTime());
+        };
+    }
+
+    /**
+     * Stable O(n log n) merge sort used by both reports. Keeping this algorithm
+     * explicit makes the searching + sorting requirement visible and testable.
+     */
+    private <T> void mergeSort(ListInterface<T> items, ItemComparator<T> comparator) {
+        if (items.size() < 2) return;
+        ListInterface<T> buffer = new ADT.ArrayList<>(items.size());
+        for (int i = 1; i <= items.size(); i++) buffer.add(items.getEntry(i));
+        mergeSort(items, buffer, 1, items.size() + 1, comparator);
+    }
+
+    private <T> void mergeSort(ListInterface<T> items, ListInterface<T> buffer,
+            int start, int end,
+            ItemComparator<T> comparator) {
+        if (end - start < 2) return;
+        int middle = (start + end) / 2;
+        mergeSort(items, buffer, start, middle, comparator);
+        mergeSort(items, buffer, middle, end, comparator);
+
+        int left = start;
+        int right = middle;
+        int target = start;
+        while (left < middle && right < end) {
+            if (comparator.compare(items.getEntry(left), items.getEntry(right)) <= 0) {
+                buffer.replace(target++, items.getEntry(left++));
+            } else {
+                buffer.replace(target++, items.getEntry(right++));
+            }
+        }
+        while (left < middle) buffer.replace(target++, items.getEntry(left++));
+        while (right < end) buffer.replace(target++, items.getEntry(right++));
+        for (int i = start; i < end; i++) items.replace(i, buffer.getEntry(i));
+    }
+
+    private HashTableInterface<String, Integer> createTierCountMap() {
+        HashTableInterface<String, Integer> counts = new HashTable<>();
+        counts.insert("Platinum", 0);
+        counts.insert("Diamond", 0);
+        counts.insert("Elite", 0);
         return counts;
     }
 
-    private Map<String, Integer> createRoomTypeCountMap(boolean includeAny) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for (String roomType : ROOM_TYPES) counts.put(roomType, 0);
-        if (includeAny) counts.put("Any", 0);
+    private HashTableInterface<String, Integer> createRoomTypeCountMap(boolean includeAny) {
+        HashTableInterface<String, Integer> counts = new HashTable<>();
+        for (String roomType : ROOM_TYPES) counts.insert(roomType, 0);
+        if (includeAny) counts.insert("Any", 0);
         return counts;
     }
 
@@ -630,7 +768,12 @@ public class VIPAllocationController {
         return roomType.trim();
     }
 
-    private void incrementCount(Map<String, Integer> counts, String key) {
-        counts.put(key, counts.getOrDefault(key, 0) + 1);
+    private int getCount(HashTableInterface<String, Integer> counts, String key) {
+        Integer count = counts.search(key);
+        return count == null ? 0 : count;
+    }
+
+    private void incrementCount(HashTableInterface<String, Integer> counts, String key) {
+        counts.insert(key, getCount(counts, key) + 1);
     }
 }

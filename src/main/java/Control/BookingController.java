@@ -1,6 +1,7 @@
 package Control;
 
 import Entity.Guest;
+import Entity.Member;
 import Entity.Room;
 import Entity.Booking;
 import Entity.BookingType;
@@ -18,11 +19,18 @@ public class BookingController extends AbstractEntityController<Booking, String>
     private static final int CONFIRMATION_NUMBER_LIMIT = 100_000_000;
 
     private final GuestController guestController;
+    private final MemberController memberController;
     private final RoomController roomController;
 
     public BookingController(GuestController guestController, RoomController roomController) {
+        this(guestController, new MemberController(), roomController);
+    }
+
+    public BookingController(GuestController guestController,
+            MemberController memberController, RoomController roomController) {
         super("data/bookings.txt");
         this.guestController = guestController;
+        this.memberController = memberController;
         this.roomController = roomController;
         loadFromFile();
     }
@@ -33,13 +41,14 @@ public class BookingController extends AbstractEntityController<Booking, String>
         if (parts.length != 6 && parts.length != 7) {
             throw new IllegalArgumentException("Invalid Booking data format: " + line);
         }
-        String guestId = parts[1].trim();
+        String holderId = parts[1].trim();
         String roomNo = parts[2].trim();
 
-        Guest guest = guestController.findByKey(guestId);
+        Guest guest = guestController.findByKey(holderId);
+        Member member = memberController.findByKey(holderId);
         Room room = roomController.findByKey(roomNo);
 
-        return Booking.fromCsvLine(line, guest, room);
+        return Booking.fromCsvLine(line, guest, member, room);
     }
 
     @Override
@@ -50,6 +59,19 @@ public class BookingController extends AbstractEntityController<Booking, String>
     @Override
     protected String getKey(Booking item) {
         return item.getConfirmationNo();
+    }
+
+    /** Adds a booking only when exactly one resolved holder is present. */
+    @Override
+    public ControllerResult add(Booking item) {
+        if (item == null) return ControllerResult.fail("Booking is required.");
+        boolean hasGuest = item.getGuest() != null;
+        boolean hasMember = item.getMember() != null;
+        if (hasGuest == hasMember) {
+            return ControllerResult.fail(
+                    "Booking must have exactly one holder: either Guest or Member.");
+        }
+        return super.add(item);
     }
 
     public ControllerResult update(String confirmationNo, Guest guest, Room room,
@@ -294,9 +316,9 @@ public class BookingController extends AbstractEntityController<Booking, String>
             LocalDate checkOut, String excludedConfirmationNo) {
         for (int i = 1; i <= list.size(); i++) {
             Booking booking = list.getEntry(i);
-            // A legacy file record may reference a guest/room that was removed.
-            // Ignore that unresolved record here instead of crashing the booking flow.
-            if (booking.getGuest() == null || booking.getRoom() == null) continue;
+            // Holder resolution is not required to reserve a room/date range.
+            // A legacy record with a removed room still cannot participate.
+            if (booking.getRoom() == null) continue;
             if (excludedConfirmationNo != null
                     && excludedConfirmationNo.equals(booking.getConfirmationNo())) continue;
             if (!roomNo.equals(booking.getRoom().getRoomNo())) continue;
@@ -377,6 +399,113 @@ public class BookingController extends AbstractEntityController<Booking, String>
     public String[] getStandardBookingReportRows(String status, LocalDate fromDate,
             LocalDate toDate, String guestKeyword) {
         return formatBookingRows(getStandardBookingReport(status, fromDate, toDate, guestKeyword));
+    }
+
+    /**
+     * Returns all booking categories for the Home Page booking list. Records are
+     * found with a linear search/filter pass and ordered with selection sort.
+     * Null or blank filter values mean "all".
+     */
+    public Booking[] getBookingList(String keyword, BookingType bookingType,
+            String status, String roomType, LocalDate fromDate, LocalDate toDate,
+            String sortBy, boolean ascending) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException(
+                    "Booking list start date cannot be after end date.");
+        }
+
+        int matchCount = 0;
+        for (int i = 1; i <= list.size(); i++) {
+            if (matchesBookingListFilters(list.getEntry(i), keyword, bookingType,
+                    status, roomType, fromDate, toDate)) {
+                matchCount++;
+            }
+        }
+
+        Booking[] filtered = new Booking[matchCount];
+        int outputIndex = 0;
+        for (int i = 1; i <= list.size(); i++) {
+            Booking booking = list.getEntry(i);
+            if (matchesBookingListFilters(booking, keyword, bookingType,
+                    status, roomType, fromDate, toDate)) {
+                filtered[outputIndex++] = booking;
+            }
+        }
+
+        selectionSortBookingList(filtered, sortBy, ascending);
+        return filtered;
+    }
+
+    private boolean matchesBookingListFilters(Booking booking, String keyword,
+            BookingType bookingType, String status, String roomType,
+            LocalDate fromDate, LocalDate toDate) {
+        if (booking == null) return false;
+
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
+        boolean correctKeyword = normalizedKeyword.isEmpty()
+                || containsIgnoreCase(booking.getConfirmationNo(), normalizedKeyword)
+                || containsIgnoreCase(booking.getHolderId(), normalizedKeyword)
+                || containsIgnoreCase(booking.getHolderName(), normalizedKeyword)
+                || containsIgnoreCase(booking.getRoomNo(), normalizedKeyword);
+        boolean correctType = bookingType == null || booking.getBookingType() == bookingType;
+        boolean correctStatus = status == null || status.isBlank()
+                || booking.getBookingStatus().equalsIgnoreCase(status.trim());
+        boolean correctRoomType = roomType == null || roomType.isBlank()
+                || (booking.getRoom() != null
+                && booking.getRoom().getRoomType().equalsIgnoreCase(roomType.trim()));
+        boolean afterStart = fromDate == null
+                || !booking.getCheckInDate().isBefore(fromDate);
+        boolean beforeEnd = toDate == null
+                || !booking.getCheckInDate().isAfter(toDate);
+        return correctKeyword && correctType && correctStatus && correctRoomType
+                && afterStart && beforeEnd;
+    }
+
+    private boolean containsIgnoreCase(String value, String normalizedKeyword) {
+        return value != null && value.toLowerCase().contains(normalizedKeyword);
+    }
+
+    /** Selectable manual selection sort used by the Home Page booking list. */
+    private void selectionSortBookingList(Booking[] bookings,
+            String sortBy, boolean ascending) {
+        for (int i = 0; i < bookings.length - 1; i++) {
+            int selectedIndex = i;
+            for (int j = i + 1; j < bookings.length; j++) {
+                int comparison = compareBookingListFields(
+                        bookings[j], bookings[selectedIndex], sortBy);
+                if ((!ascending && comparison > 0) || (ascending && comparison < 0)) {
+                    selectedIndex = j;
+                }
+            }
+            if (selectedIndex != i) {
+                Booking temporary = bookings[i];
+                bookings[i] = bookings[selectedIndex];
+                bookings[selectedIndex] = temporary;
+            }
+        }
+    }
+
+    private int compareBookingListFields(Booking left, Booking right, String sortBy) {
+        String option = sortBy == null ? "" : sortBy.trim().toLowerCase();
+        int comparison = switch (option) {
+            case "confirmation no" -> compareText(
+                    left.getConfirmationNo(), right.getConfirmationNo());
+            case "holder name" -> compareText(
+                    left.getHolderName(), right.getHolderName());
+            case "booking type" -> compareText(
+                    left.getBookingType().name(), right.getBookingType().name());
+            case "room no" -> compareText(left.getRoomNo(), right.getRoomNo());
+            default -> left.getCheckInDate().compareTo(right.getCheckInDate());
+        };
+        if (comparison != 0) return comparison;
+        return compareText(left.getConfirmationNo(), right.getConfirmationNo());
+    }
+
+    private int compareText(String left, String right) {
+        if (left == null && right == null) return 0;
+        if (left == null) return -1;
+        if (right == null) return 1;
+        return left.compareToIgnoreCase(right);
     }
 
     private String[] formatBookingRows(Booking[] bookings) {
