@@ -17,15 +17,9 @@ import java.time.temporal.ChronoUnit;
  */
 
 /**
- * Front Desk keeps its OWN HashTable<String, Booking> as a fast search index
- * for confirmation-number lookups, built once from BookingController's shared
- * data.
- * Front Desk's job is specifically fast repeated lookup by confirmation
- * number, so it builds a HashTable index on top instead of duplicating data:
- * the index holds references to the SAME Booking objects BookingController
- * holds, so a status change made elsewhere is visible through this index 
- * immediately, with no re-sync needed.
- *
+ * Uses a HashTable as a fast search index for booking confirmation numbers.
+ * The index stores references to the same Booking objects managed by
+ * BookingController.
  */
 public class FrontDeskController {
 
@@ -61,6 +55,7 @@ public class FrontDeskController {
         return acc.hasErrors() ? acc.getErrorMessage() : null;
     }
 
+    // Searches for a booking using the entered 8-digit confirmation number.
     public ControllerResult searchByConfirmationNo(String confNo) {
 
         String validationError = validateConfirmationNo(confNo);
@@ -87,6 +82,7 @@ public class FrontDeskController {
         );
     }
 
+    // Retrieves the assigned room details and current room status for a booking.
     public ControllerResult checkAssignedRoomStatus(String confNo) {
         String validationError = validateConfirmationNo(confNo);
         if (validationError != null) {
@@ -132,6 +128,7 @@ public class FrontDeskController {
         return ControllerResult.success(sb.toString());
     }
 
+    // Calculates and displays the billing details for a selected booking.
     public ControllerResult getBillingDetails(String confNo) {
         String validationError = validateConfirmationNo(confNo);
         if (validationError != null) {
@@ -216,9 +213,7 @@ public class FrontDeskController {
     }
 
     /**
-     * Whether this booking has already been paid and checked out. Used by
-     * FrontDeskUI's Check-Out flow to decide whether payment needs to be
-     * collected before finishing the check-out.
+     * Checks whether the booking is currently in CheckedIn status.
      */
     public boolean isBookingCheckedIn(String confNo) {
 
@@ -235,6 +230,7 @@ public class FrontDeskController {
                 );
     }
     
+    // Checks whether the booking has already been checked out.
     public boolean isBookingCheckedOut(String confNo) {
         if (confNo == null) {
             return false;
@@ -243,6 +239,7 @@ public class FrontDeskController {
         return booking != null && "CheckedOut".equalsIgnoreCase(booking.getBookingStatus());
     }
     
+    // Retrieves the scheduled check-out date for the selected booking.
     public LocalDate getScheduledCheckOutDate(String confNo) {
 
         if (confNo == null) {
@@ -257,6 +254,7 @@ public class FrontDeskController {
                 : booking.getCheckOutDate();
     }
 
+    // Determines whether the check-out is early, on time, or late.
     public String getCheckOutTiming(String confNo) {
 
         Booking booking =
@@ -283,9 +281,7 @@ public class FrontDeskController {
         return "ON_TIME";
     }
 
-    /** Returns the room number tied to a booking, or null if not found. Used
-     *  by FrontDeskUI's Check-Out flow to flip the room back to Available
-     *  once payment succeeds. */
+    // Returns the room number linked to a booking, or null if not found.
     public String getRoomNoForBooking(String confNo) {
         if (confNo == null) {
             return null;
@@ -301,11 +297,8 @@ public class FrontDeskController {
     }
 
     /**
-     * Deliberately does NOT use the HashTable index - this is a plain
-     * linear scan over every booking, kept alongside searchByConfirmationNo()
-     * as a contrast: O(1) average-case hash lookup by exact confirmation
-     * number vs O(n) linear scan for a partial, case-insensitive name match
-     * (name search can't hash to a single bucket the way an exact key can).
+     * Uses linear search because guest-name matching is partial and
+     * case-insensitive, unlike exact confirmation-number lookup.
      */
     public ControllerResult searchByGuestName(String name) {
 
@@ -374,9 +367,7 @@ public class FrontDeskController {
     }
 
     /**
-     * Lists every booking, sorted by the requested field. sortBy accepts
-     * "checkin" (default), "roomtype", or "status" - anything else falls
-     * back to check-in date.
+     * Displays all bookings sorted by check-in date, room type, or status.
      */
     public ControllerResult viewAllBookings(String sortBy) {
         Booking[] bookings = toArray(bookingController.getAll());
@@ -433,6 +424,7 @@ public class FrontDeskController {
         );
     }
 
+    // Generates a summary of the current booking, room and payment information.
     public ControllerResult quickStats() {
 
         int totalBookings = getTotalBookings();
@@ -576,9 +568,7 @@ public class FrontDeskController {
     }
 
     /**
-     * Sorted (by total bill, descending) and optionally filtered (by booking
-     * status and/or check-out date range) revenue report.
-     * Pass null / blank for statusFilter, and null for start/end to skip those filters.
+     * Generates a revenue report filtered by date and sorted by total amount.
      */
     public ControllerResult revenueReport(LocalDate start, LocalDate end) {
 
@@ -664,8 +654,7 @@ public class FrontDeskController {
     }
 
     /**
-     * Bookings not yet checked out (i.e. not yet paid), sorted by amount
-     * due, descending, so the highest outstanding balances surface first.
+     * Generates unpaid bookings sorted by outstanding amount in descending order.
      */
     public ControllerResult outstandingPaymentsReport(String statusFilter, LocalDate start, LocalDate end) {
 
@@ -843,7 +832,7 @@ public class FrontDeskController {
         return true;
     }
 
-    /** Manual insertion sort, ascending, keyed by "checkin", "roomtype", or "status". */
+    // Insertion sort by check-in date, room type, or status.
     private void insertionSortBookingsBy(Booking[] bookings, String sortBy) {
         for (int i = 1; i < bookings.length; i++) {
             Booking key = bookings[i];
@@ -868,7 +857,7 @@ public class FrontDeskController {
         }
     }
 
-    /** Manual insertion sort, descending by calculateTotal(booking). */
+    // Insertion sort by total bill in descending order.
     private void insertionSortByTotalDescending(Booking[] bookings) {
         for (int i = 1; i < bookings.length; i++) {
             Booking key = bookings[i];
@@ -882,7 +871,7 @@ public class FrontDeskController {
         }
     }
 
-    /** Shared with PaymentController so both charge/display the exact same figure. */
+    // Calculates nights consistently for billing and payment.
     static long nightsBetween(Booking booking) {
         long nights = ChronoUnit.DAYS.between(booking.getCheckInDate(), booking.getCheckOutDate());
         return nights <= 0 ? 1 : nights; // guard against same-day / bad-date edge cases
@@ -948,10 +937,12 @@ public class FrontDeskController {
         );
     }
 
+    // Returns the total number of booking records.
     public int getTotalBookings() {
         return bookingController.getAll().size();
     }
     
+    // Updates the booking status and refreshes the Front Desk search index.
     public ControllerResult updateBookingStatus(String confNo, String status) {
         ControllerResult result =
                 bookingController.updateBookingStatus(
@@ -993,6 +984,7 @@ public class FrontDeskController {
         return result;
     }
     
+    // Retrieves and displays bookings scheduled to arrive on the current date.
     public ControllerResult getTodaysArrivals() {
 
         LocalDate today = LocalDate.now();
@@ -1051,6 +1043,7 @@ public class FrontDeskController {
         );
     }
 
+    // Retrieves and displays bookings scheduled to depart on the current date.
     public ControllerResult getTodaysDepartures() {
 
         LocalDate today = LocalDate.now();
@@ -1109,6 +1102,7 @@ public class FrontDeskController {
         );
     }
     
+    // Generates a room status report based on the selected status filter.
     public ControllerResult roomStatusReport(
         String statusFilter){
 

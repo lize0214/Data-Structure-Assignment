@@ -75,6 +75,7 @@ public class PaymentController {
                 : null;
     }
 
+    // Processes and records a payment for the selected booking.
     public ControllerResult processPayment(
             String confNo,
             String method,
@@ -184,9 +185,7 @@ public class PaymentController {
         );
     }
 
-    /*
-     * Returns all payments stored in payments.txt.
-     */
+    // Returns all payment records stored in payments.txt.
     public Payment[] getAllPayments() {
 
         if (!FileUtility.fileExists(paymentsFile)) {
@@ -221,9 +220,7 @@ public class PaymentController {
         return payments;
     }
 
-    /*
-     * Calculates the total revenue from successful payments.
-     */
+    // Calculates total revenue from successful payments.
     public double getTotalRevenue() {
 
         double total = 0;
@@ -240,9 +237,7 @@ public class PaymentController {
         return total;
     }
 
-    /*
-     * Counts the total number of successfully processed payments.
-     */
+    // Counts successfully processed payments.
     public int getTotalPaymentsProcessed() {
 
         int count = 0;
@@ -259,6 +254,7 @@ public class PaymentController {
         return count;
     }
     
+    // Checks whether a successful payment already exists for the booking.
     public boolean isPaid(String confNo) {
         if (confNo == null || confNo.trim().isEmpty()) {
             return false;
