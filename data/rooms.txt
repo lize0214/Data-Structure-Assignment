@@ -9,7 +9,7 @@
 201,Single,120.0,Occupied
 202,Deluxe,250.0,Available
 203,Suite,480.0,Available
-204,Deluxe,250.0,Occupied
+204,Deluxe,250.0,Dirty
 205,Deluxe,260.0,Dirty
 206,Deluxe,260.0,Available
 207,Deluxe,260.0,Dirty
