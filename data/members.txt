@@ -1,15 +1,17 @@
-M001,Jisoo,Platinum,26366
+M001,Jisoo,Platinum,24366
 M002,Minji,Gold,2635
 M003,Sana,Elite,4644
 M004,Chen Wei,Silver,0
 M005,Hanni,Silver,873
-M006,Li Jia En,Gold,1500
+M006,Li Jia En,Elite,3921
 M007,Lisa,Platinum,123725
 M008,Wong Zi Xuan,Diamond,6500
 M009,Nayeon,Platinum,123445
-M010,Karina,Gold,1700
-M011,Rosé,Platinum,12345
-M012,Lim Wei Jun,Silver,262
+M010,Karina,Platinum,23700
+M011,Rose,Platinum,12345
+M012,Lim Wei Jun,Silver,412
 M013,Danielle,Platinum,126974
-M014,Winter,Gold,1378
+M014,Winter,Elite,3578
 M015,Zhang Rui Ting,Silver,135
+M016,Alice Tan,Silver,500
+M017,Hanni,Gold,2100
