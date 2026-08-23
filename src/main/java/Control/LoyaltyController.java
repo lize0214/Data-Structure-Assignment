@@ -34,7 +34,7 @@ public class LoyaltyController {
     private final ListInterface<PointsTransaction> transactionList;
     private final MemberController memberController;
 
-    // Initializes the loyalty controller.
+    // Loads rewards, redemptions and transactions from disk, then immediately expires any stale points.
     public LoyaltyController(MemberController memberController) {
         this.memberController = memberController;
         this.rewardList = new DoublyLinkedList<>();
@@ -46,7 +46,7 @@ public class LoyaltyController {
         processExpiredPoints();
     }
 
-    // Loads rewards from the file.
+    // Reads REWARD_FILE and rebuilds the in-memory reward list, skipping blank lines.
     private void loadRewardsFromFile() {
         String[] lines = FileUtility.readLines(REWARD_FILE);
         for (String line : lines) {
@@ -56,7 +56,7 @@ public class LoyaltyController {
         }
     }
 
-    // Saves rewards to the file.
+    // Serializes every reward in memory back to REWARD_FILE, overwriting its contents.
     private void saveRewardsToFile() {
         String[] lines = new String[rewardList.size()];
         for (int i = 0; i < rewardList.size(); i++) {
@@ -65,7 +65,7 @@ public class LoyaltyController {
         FileUtility.writeAllLines(REWARD_FILE, lines);
     }
 
-    // Loads redemption records.
+    // Reads REDEMPTION_FILE and rebuilds the in-memory redemption list.
     private void loadRedemptionsFromFile() {
         String[] lines = FileUtility.readLines(REDEMPTION_FILE);
         for (String line : lines) {
@@ -75,7 +75,7 @@ public class LoyaltyController {
         }
     }
 
-    // Saves redemption records.
+    // Serializes every redemption record in memory back to REDEMPTION_FILE.
     private void saveRedemptionsToFile() {
         String[] lines = new String[redemptionList.size()];
         for (int i = 0; i < redemptionList.size(); i++) {
@@ -84,7 +84,7 @@ public class LoyaltyController {
         FileUtility.writeAllLines(REDEMPTION_FILE, lines);
     }
 
-    // Loads point transactions.
+    // Reads TRANSACTION_FILE and rebuilds the in-memory transaction list.
     private void loadTransactionsFromFile() {
         String[] lines = FileUtility.readLines(TRANSACTION_FILE);
         for (String line : lines) {
@@ -94,7 +94,7 @@ public class LoyaltyController {
         }
     }
 
-    // Saves point transactions.
+    // Serializes every points transaction in memory back to TRANSACTION_FILE.
     private void saveTransactionsToFile() {
         String[] lines = new String[transactionList.size()];
         for (int i = 0; i < transactionList.size(); i++) {
@@ -103,12 +103,12 @@ public class LoyaltyController {
         FileUtility.writeAllLines(TRANSACTION_FILE, lines);
     }
 
-    // Generates the next transaction ID.
+    // Builds a sequential transaction ID (e.g. TXN0001) from the current list size.
     private String generateNextTransactionId() {
         return String.format("TXN%04d", transactionList.size() + 1);
     }
 
-    // Records a points transaction.
+    // Appends a new points transaction (no expiry) for a member and persists it.
     private void logTransaction(String memberId, int pointsChange, String type, String note) {
         PointsTransaction transaction = new PointsTransaction(
                 generateNextTransactionId(), memberId, pointsChange, type, note, LocalDate.now());
@@ -116,7 +116,7 @@ public class LoyaltyController {
         saveTransactionsToFile();
     }
 
-    // Records a transaction with an expiry date.
+    // Same as logTransaction but also records an expiry date, used for EARN entries so processExpiredPoints() can later reclaim them.
     private void logTransactionWithExpiry(String memberId, int pointsChange, String type,
             String note, LocalDate expiryDate) {
         PointsTransaction transaction = new PointsTransaction(
@@ -125,7 +125,7 @@ public class LoyaltyController {
         saveTransactionsToFile();
     }
 
-    // Gets a member transaction history.
+    // Returns every transaction belonging to the given member, in chronological order.
     public ListInterface<PointsTransaction> getTransactionHistoryByMember(String memberId) {
         ListInterface<PointsTransaction> results = new DoublyLinkedList<>();
         for (int i = 1; i <= transactionList.size(); i++) {
@@ -137,12 +137,12 @@ public class LoyaltyController {
         return results;
     }
 
-    // Gets all transactions.
+    // Returns the full, unfiltered transaction list.
     public ListInterface<PointsTransaction> getAllTransactions() {
         return transactionList;
     }
 
-    // Counts today's transactions.
+    // Counts how many transactions (of any type) were logged today.
     public int getTransactionsTodayCount() {
         LocalDate today = LocalDate.now();
         int count = 0;
@@ -154,7 +154,7 @@ public class LoyaltyController {
         return count;
     }
 
-    // Gets points expiring soon.
+    // Finds unexpired EARN transactions expiring within EXPIRY_WARNING_DAYS; pass null memberId to check all members.
     public ListInterface<PointsTransaction> getExpiringSoonTransactions(String memberId) {
         ListInterface<PointsTransaction> result = new DoublyLinkedList<>();
         LocalDate today = LocalDate.now();
@@ -181,17 +181,17 @@ public class LoyaltyController {
         return result;
     }
 
-    // Gets days until expiry.
+    // Returns days remaining until the transaction's points expire (negative if already expired).
     public long getDaysUntilExpiry(PointsTransaction transaction) {
         return ChronoUnit.DAYS.between(LocalDate.now(), transaction.getExpiryDate());
     }
 
-    // Gets the expiry warning period.
+    // Exposes the expiry warning window length (in days) used across the UI.
     public int getExpiryWarningDays() {
         return EXPIRY_WARNING_DAYS;
     }
 
-    // Gets recently expired transactions.
+    // Finds EXPIRE transactions logged within the last EXPIRY_WARNING_DAYS days; pass null memberId to check all members.
     public ListInterface<PointsTransaction> getRecentlyExpiredTransactions(String memberId) {
         ListInterface<PointsTransaction> result = new DoublyLinkedList<>();
         LocalDate cutoff = LocalDate.now().minusDays(EXPIRY_WARNING_DAYS);
@@ -214,7 +214,7 @@ public class LoyaltyController {
         return result;
     }
 
-    // Stores expired points for a member.
+    // Running total of points that expired for one member during a single processExpiredPoints() pass.
     public static class ExpiredPointsResult {
 
         public final String memberId;
@@ -226,7 +226,7 @@ public class LoyaltyController {
         }
     }
 
-    // Processes expired points.
+    // Flags expired EARN transactions as processed, deducts the lapsed amount from each member's balance (clamped at 0), re-checks tier, and logs an EXPIRE transaction per member; safe to call repeatedly.
     public ListInterface<ExpiredPointsResult> processExpiredPoints() {
         ListInterface<ExpiredPointsResult> results = new DoublyLinkedList<>();
         LocalDate today = LocalDate.now();
@@ -292,12 +292,12 @@ public class LoyaltyController {
         return results;
     }
 
-    // Generates the next member ID.
+    // Builds a sequential member ID (e.g. M001) from the current member count.
     public String generateNextMemberId() {
         return String.format("M%03d", memberController.getAll().size() + 1);
     }
 
-    // Registers a new member.
+    // Validates input, assigns a starting tier from points, creates the member, and logs an initial EARN transaction (12-month expiry) if starting points > 0.
     public ControllerResult registerMember(String memberId, String name, int points) {
         ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
         acc.check(ValidationUtility.validateRequired(memberId, "Member ID"));
@@ -324,12 +324,12 @@ public class LoyaltyController {
                 + " tier - " + points + " starting points");
     }
 
-    // Searches for a member by ID.
+    // Looks up a single member by exact ID; returns null if not found.
     public Member searchMemberById(String memberId) {
         return memberController.findByKey(memberId);
     }
 
-    // Searches members by name.
+    // Returns members whose name contains the given text (case-insensitive, partial match).
     public ListInterface<Member> searchMemberByName(String namePart) {
         ListInterface<Member> results = new DoublyLinkedList<>();
         ListInterface<Member> allMembers = memberController.getAll();
@@ -343,12 +343,12 @@ public class LoyaltyController {
         return results;
     }
 
-    // Returns all members.
+    // Returns every registered member.
     public ListInterface<Member> viewAllMembers() {
         return memberController.getAll();
     }
 
-    // Adds points to a member.
+    // Credits points to a member using their tier's earn multiplier (rounded), re-checks tier, and logs an EARN transaction with a 12-month expiry; validates positive input and guards against overflow.
     public ControllerResult earnPoints(String memberId, int pointsEarned) {
         String error = ValidationUtility.validatePositive(pointsEarned, "Points earned");
         if (error != null) {
@@ -402,7 +402,7 @@ public class LoyaltyController {
         return ControllerResult.success("Earned " + awardedPoints + " points" + bonusNote + ". New balance: " + newPoints);
     }
 
-    // Gets a member rank.
+    // Returns the member's 1-based leaderboard rank by points (ties share rank); -1 if not found.
     public int getMemberRank(String memberId) {
         Member target = memberController.findByKey(memberId);
         if (target == null) {
@@ -419,12 +419,12 @@ public class LoyaltyController {
         return rank;
     }
 
-    // Gets the total member count.
+    // Returns the total number of registered members.
     public int getTotalMemberCount() {
         return memberController.getAll().size();
     }
 
-    // Gets the latest member redemption.
+    // Returns the member's most recent redemption, or null if they have none.
     public RewardRedemption getMostRecentRedemptionForMember(String memberId) {
         ListInterface<RewardRedemption> memberHistory = viewRedemptionHistoryByMember(memberId);
         if (memberHistory.isEmpty()) {
@@ -433,7 +433,7 @@ public class LoyaltyController {
         return memberHistory.getEntry(memberHistory.size());
     }
 
-    // Counts rewards in stock.
+    // Counts how many distinct reward types currently have stock available.
     public int getAvailableRewardCount() {
         int count = 0;
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -444,12 +444,12 @@ public class LoyaltyController {
         return count;
     }
 
-    // Gets the low-stock threshold.
+    // Exposes the quantity at/below which a reward is considered low stock.
     public int getLowStockThreshold() {
         return LOW_STOCK_THRESHOLD;
     }
 
-    // Gets the tier points multiplier.
+    // Returns the points-earning multiplier for a tier (Silver/unknown = 1.00 baseline).
     public double getTierMultiplier(String tier) {
         return switch (tier) {
             case "Gold" ->
@@ -465,7 +465,7 @@ public class LoyaltyController {
         };
     }
 
-    // Calculates a member tier.
+    // Determines the tier a member belongs to based on total points, checking thresholds highest to lowest.
     public String calculateTier(int points) {
         if (points >= PLATINUM_MIN) {
             return "Platinum";
@@ -482,7 +482,7 @@ public class LoyaltyController {
         return "Silver";
     }
 
-    // Gets the points required for a tier.
+    // Returns the minimum points needed to reach the given tier (0 for Silver).
     public int getTierThreshold(String tier) {
         return switch (tier) {
             case "Gold" ->
@@ -498,7 +498,7 @@ public class LoyaltyController {
         };
     }
 
-    // Updates the member tier.
+    // Recalculates a member's tier from current points and updates storage if it changed.
     public ControllerResult checkAndApplyTierUpgrade(String memberId) {
         Member member = memberController.findByKey(memberId);
         if (member == null) {
@@ -517,7 +517,7 @@ public class LoyaltyController {
         return ControllerResult.success("Tier changed to " + correctTier);
     }
 
-    // Gets affordable rewards.
+    // Returns in-stock rewards a member can afford with the given points balance.
     public ListInterface<Reward> getAffordableRewards(int memberPoints) {
         ListInterface<Reward> result = new DoublyLinkedList<>();
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -529,7 +529,7 @@ public class LoyaltyController {
         return result;
     }
 
-    // Creates the tier progress display.
+    // Builds a text progress bar toward the next tier, or a "highest tier reached" message if already at Platinum/unknown.
     public String getTierProgressDisplay(String currentTier, int currentPoints) {
         String[] tiers = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
         int[] thresholds = {0, GOLD_MIN, ELITE_MIN, DIAMOND_MIN, PLATINUM_MIN};
@@ -569,12 +569,12 @@ public class LoyaltyController {
                 + "Need " + pointsNeeded + " more points.";
     }
 
-    // Generates the next reward ID.
+    // Builds a sequential reward ID (e.g. R001) from the current reward count.
     public String generateNextRewardId() {
         return String.format("R%03d", rewardList.size() + 1);
     }
 
-    // Adds a new reward.
+    // Validates input and adds a new reward to the catalog, rejecting duplicate IDs.
     public ControllerResult addReward(String rewardId, String rewardName, String category,
             int pointsRequired, int quantity) {
         ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
@@ -596,7 +596,7 @@ public class LoyaltyController {
                 + pointsRequired + " pts - Qty: " + quantity);
     }
 
-    // Restocks a reward.
+    // Increases a reward's stock by the given amount, guarding against overflow past Integer.MAX_VALUE.
     public ControllerResult restockReward(String rewardId, int quantity) {
 
         String error
@@ -631,13 +631,13 @@ public class LoyaltyController {
                 + " units. New stock: " + reward.getQuantity());
     }
 
-    // Searches for a reward by ID.
+    // Looks up a single reward by exact ID; returns null if not found.
     public Reward findRewardById(String rewardId) {
         int position = findRewardPosition(rewardId);
         return (position == -1) ? null : rewardList.getEntry(position);
     }
 
-    // Finds a reward position.
+    // Returns the 1-based list position of a reward by ID, or -1 if not found.
     private int findRewardPosition(String rewardId) {
         for (int i = 1; i <= rewardList.size(); i++) {
             if (rewardList.getEntry(i).getRewardId().equals(rewardId)) {
@@ -647,12 +647,12 @@ public class LoyaltyController {
         return -1;
     }
 
-    // Returns all rewards.
+    // Returns the full reward catalog.
     public ListInterface<Reward> viewRewards() {
         return rewardList;
     }
 
-    // Searches rewards by keyword.
+    // Returns rewards whose name or category contains the given keyword (case-insensitive, partial match).
     public ListInterface<Reward> searchRewardsByKeyword(String keyword) {
         ListInterface<Reward> results = new DoublyLinkedList<>();
         String lowerKeyword = keyword.toLowerCase();
@@ -667,7 +667,7 @@ public class LoyaltyController {
         return results;
     }
 
-    // Gets low-stock rewards.
+    // Returns rewards in stock but at or below LOW_STOCK_THRESHOLD (out-of-stock rewards excluded).
     public ListInterface<Reward> getLowStockRewards() {
         ListInterface<Reward> lowStock = new DoublyLinkedList<>();
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -679,7 +679,7 @@ public class LoyaltyController {
         return lowStock;
     }
 
-    // Converts rewards to an array.
+    // Copies the reward list into a plain array for array-based sorting.
     private Reward[] toRewardArray() {
         Reward[] array = new Reward[rewardList.size()];
         for (int i = 1; i <= rewardList.size(); i++) {
@@ -688,7 +688,7 @@ public class LoyaltyController {
         return array;
     }
 
-    // Compares rewards for sorting.
+    // Compares two rewards by field ("name", "stock", default "price"); currently unused since sortRewards() relies on shouldComeAfter() instead.
     private int compareRewards(Reward a, Reward b, String sortBy) {
         return switch (sortBy.toLowerCase()) {
             case "name" ->
@@ -700,7 +700,7 @@ public class LoyaltyController {
         };
     }
 
-    // Sorts the rewards.
+    // Returns rewards sorted ascending by field ("price", "name", or "stock") using an insertion sort over an array snapshot.
     public ListInterface<Reward> sortRewards(String sortBy) {
         Reward[] array = toRewardArray();
 
@@ -725,7 +725,7 @@ public class LoyaltyController {
         return sorted;
     }
 
-    // Checks the sorting order.
+    // Insertion-sort comparator: true if "existing" should shift right of "current" for the given field.
     private boolean shouldComeAfter(Reward existing, Reward current, String sortBy) {
 
         switch (sortBy.toLowerCase()) {
@@ -747,7 +747,7 @@ public class LoyaltyController {
         }
     }
 
-    // Redeems a reward.
+    // Redeems a reward for a member: validates stock/points, deducts points, decrements stock, records the redemption, re-checks tier, and logs a REDEEM transaction.
     public ControllerResult redeemReward(String redemptionId, String memberId, String rewardId) {
         Member member = memberController.findByKey(memberId);
         if (member == null) {
@@ -786,12 +786,12 @@ public class LoyaltyController {
                 + " for " + reward.getPointsRequired() + " points. Remaining balance: " + newPoints);
     }
 
-    // Returns redemption history.
+    // Returns the full redemption history across all members.
     public ListInterface<RewardRedemption> viewRedemptionHistory() {
         return redemptionList;
     }
 
-    // Gets a member redemption history.
+    // Returns redemption history filtered to a single member.
     public ListInterface<RewardRedemption> viewRedemptionHistoryByMember(String memberId) {
         ListInterface<RewardRedemption> results = new DoublyLinkedList<>();
         for (int i = 1; i <= redemptionList.size(); i++) {
@@ -803,12 +803,12 @@ public class LoyaltyController {
         return results;
     }
 
-    // Gets the total redemptions.
+    // Returns the total number of redemptions ever made.
     public int getTotalRedemptions() {
         return redemptionList.size();
     }
 
-    // Stores a redemption count by category.
+    // Running redemption count for one reward category.
     public static class CategoryCount {
 
         public final String category;
@@ -820,11 +820,12 @@ public class LoyaltyController {
         }
     }
 
-    // Gets redemption statistics.
+    // Returns redemption counts grouped by reward category, across all categories.
     public ListInterface<CategoryCount> getRedemptionStatsByCategory() {
         return getRedemptionStatsByCategory(null);
     }
 
+    // Returns redemption counts grouped by category, optionally restricted to one category; missing rewards count as "Unknown".
     public ListInterface<CategoryCount> getRedemptionStatsByCategory(String categoryFilter) {
         ListInterface<CategoryCount> stats = new DoublyLinkedList<>();
         boolean hasFilter = categoryFilter != null && !categoryFilter.isBlank();
@@ -859,12 +860,48 @@ public class LoyaltyController {
         return stats;
     }
 
-    // Generates the next redemption ID.
+    // Builds the next redemption ID (e.g. RED0001) by scanning existing "RED"-prefixed IDs for the highest number used and incrementing it.
     public String generateNextRedemptionId() {
-        return String.format("RDM%04d", redemptionList.size() + 1);
+
+        int nextNumber = 1;
+
+        for (int i = 1; i <= redemptionList.size(); i++) {
+
+            RewardRedemption redemption
+                    = redemptionList.getEntry(i);
+
+            String id = redemption.getRedemptionId();
+
+            if (id == null) {
+                continue;
+            }
+
+            if (id.startsWith("RED")) {
+
+                try {
+
+                    int number
+                            = Integer.parseInt(
+                                    id.substring(3)
+                            );
+
+                    if (number >= nextNumber) {
+                        nextNumber = number + 1;
+                    }
+
+                } catch (NumberFormatException e) {
+                    // Ignore invalid redemption IDs.
+                }
+            }
+        }
+
+        return String.format(
+                "RED%04d",
+                nextNumber
+        );
     }
 
-    // Gets the latest redemption.
+    // Returns the most recently made redemption, or null if none exist.
     public RewardRedemption getLastRedemption() {
         if (redemptionList.isEmpty()) {
             return null;
@@ -872,7 +909,7 @@ public class LoyaltyController {
         return redemptionList.getEntry(redemptionList.size());
     }
 
-    // Undoes the latest redemption.
+    // Reverses the most recent redemption: refunds points, restocks the reward, re-checks tier, logs an UNDO transaction, and removes the redemption record.
     public ControllerResult undoLastRedemption() {
         if (redemptionList.isEmpty()) {
             return ControllerResult.fail("No redemptions to undo.");
@@ -926,12 +963,12 @@ public class LoyaltyController {
                 + ". Refunded " + last.getRedeemedPoints() + " points to " + last.getMemberId() + ".");
     }
 
-    // Gets the top members by points.
+    // Returns the top N members ranked by points, descending, across all members.
     public ListInterface<Member> topMembersByPoints(int topN) {
         return topMembersByPoints(topN, memberController.getAll());
     }
 
-    // Sorts and returns top members.
+    // Snapshots the given member list into an array, insertion-sorts it descending by points, and returns up to topN members.
     private ListInterface<Member> topMembersByPoints(int topN, ListInterface<Member> source) {
         int total = source.size();
 
@@ -962,7 +999,7 @@ public class LoyaltyController {
         return topMembers;
     }
 
-    // Filters members by tier and points.
+    // Returns members matching an optional tier name and a points range [minPoints, maxPoints]; null/blank tierFilter includes all tiers.
     public ListInterface<Member> getMembersFiltered(String tierFilter, int minPoints, int maxPoints) {
         ListInterface<Member> all = memberController.getAll();
         ListInterface<Member> filtered = new DoublyLinkedList<>();
@@ -979,13 +1016,13 @@ public class LoyaltyController {
         return filtered;
     }
 
-    // Creates the member loyalty report.
+    // Filters members by tier/points range, then ranks them by points descending as a loyalty report.
     public ListInterface<Member> getMemberLoyaltyReport(String tierFilter, int minPoints, int maxPoints) {
         ListInterface<Member> filtered = getMembersFiltered(tierFilter, minPoints, maxPoints);
         return topMembersByPoints(filtered.size(), filtered);
     }
 
-    // Counts members in each tier.
+    // Counts members in each tier, returned as [Silver, Gold, Elite, Diamond, Platinum].
     public int[] membershipTierDistribution() {
         int[] counts = new int[5]; // Silver, Gold, Elite, Diamond, Platinum
         ListInterface<Member> allMembers = memberController.getAll();
@@ -1010,7 +1047,7 @@ public class LoyaltyController {
         return counts;
     }
 
-    // Stores a reward redemption count.
+    // Running redemption count for one reward, used to rank reward popularity.
     public static class RewardPopularity {
 
         public final String rewardName;
@@ -1022,7 +1059,7 @@ public class LoyaltyController {
         }
     }
 
-    // Gets reward popularity statistics.
+    // Returns how many times each reward has been redeemed; missing rewards grouped under "Unknown Reward".
     public ListInterface<RewardPopularity> getRewardPopularity() {
         ListInterface<RewardPopularity> stats = new DoublyLinkedList<>();
 
@@ -1052,17 +1089,17 @@ public class LoyaltyController {
         return stats;
     }
 
-    // Gets the total member count.
+    // Returns the total number of registered members (dashboard-facing alias).
     public int getTotalMembers() {
         return memberController.getAll().size();
     }
 
-    // Gets the total reward types.
+    // Returns the total number of distinct reward types in the catalog.
     public int getTotalRewardTypes() {
         return rewardList.size();
     }
 
-    // Gets total points across members.
+    // Sums current point balances across every member.
     public int getTotalPointsAcrossMembers() {
         int total = 0;
         ListInterface<Member> all = memberController.getAll();
@@ -1072,7 +1109,7 @@ public class LoyaltyController {
         return total;
     }
 
-    // Gets the most popular category.
+    // Returns the reward category with the most redemptions, or "N/A" if there are none.
     public String getMostPopularCategory() {
         ListInterface<CategoryCount> stats = getRedemptionStatsByCategory();
         if (stats.isEmpty()) {
