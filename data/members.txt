@@ -9,7 +9,7 @@ M008,Wong Zi Xuan,Diamond,6500
 M009,Nayeon,Platinum,123445
 M010,Karina,Gold,1700
 M011,Rosé,Platinum,12345
-M012,Lim Wei Jun,Silver,412
+M012,Lim Wei Jun,Silver,262
 M013,Danielle,Platinum,126974
 M014,Winter,Gold,1378
 M015,Zhang Rui Ting,Silver,135

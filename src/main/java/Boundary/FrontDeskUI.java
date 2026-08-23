@@ -8,6 +8,8 @@ import Control.BookingController;
 import Control.FrontDeskController;
 import Control.PaymentController;
 import Control.RoomController;
+import Entity.Booking;
+import Entity.Room;
 import Utility.ControllerResult;
 
 import java.time.LocalDate;
@@ -26,6 +28,11 @@ public class FrontDeskUI {
     private final RoomController roomController;
     private final Scanner scanner;
 
+    private static final String LINE_SHORT =
+            "------------------------------------------------------------------------------";
+    private static final String LINE_LONG =
+            "----------------------------------------------------------------------------------------------";
+
     public FrontDeskUI(BookingController bookingController, Scanner scanner) {
         this.scanner = scanner;
         roomController = new RoomController();
@@ -33,8 +40,6 @@ public class FrontDeskUI {
         controller = new FrontDeskController(bookingController, roomController, paymentController);
     }
 
-    // ───────────────────── Banners (Diet Cola font, patorjk.com/software/taag) ─────────────────────
-    // Main "Front Desk" banner - original artwork.
     private static final String[] BANNER_MAIN = {
         "            .-._.---'                        .-.                           ",
         "          (_) /                      /     (_) )-.                 /       ",
@@ -64,7 +69,7 @@ public class FrontDeskUI {
         "                       /'      )`-'  `-'_/    \\_.(__. '/   (    `-/-'",
         "                    (_/  `----'                             `--._/    "
     };
-    
+
     private static final String[] BANNER_BOOKINGENQUIRY = {
         "                .-.                                            \n" +
         "               (_) )-.               /      .-.                \n" +
@@ -123,7 +128,7 @@ public class FrontDeskUI {
         "                  (     --;-`--':(__.'/ ._)/                         \n" +
         "                   `.___.'           /                               "
     };
-    
+
     private static final String[] BANNER_MOVEMENT = {
         "       .--------'      .                          .-.                    \n" +
         "      (_)   /         /                    .--.`-'                  /    \n" +
@@ -192,7 +197,7 @@ public class FrontDeskUI {
         System.out.print("Press ENTER to continue...");
         scanner.nextLine();
     }
-    
+
     private boolean confirmAction(String message) {
 
         while (true) {
@@ -253,7 +258,7 @@ public class FrontDeskUI {
                     runReportsMenu();
                     break;
 
-                case "0": 
+                case "0":
                     running = false;
                     System.out.println(
                             "Returning to Main Menu...\n"
@@ -291,17 +296,16 @@ public class FrontDeskUI {
             System.out.print("Enter 8-digit confirmation number: ");
             String confNo = scanner.nextLine().trim();
 
-            if (!confNo.matches("\\d{8}")) {
+            String validationError = controller.validateConfirmationNo(confNo);
+
+            if (validationError != null) {
                 System.out.println(
                         "Invalid format. Confirmation number must be exactly 8 digits.\n"
                 );
                 continue;
             }
 
-            ControllerResult result =
-                    controller.searchByConfirmationNo(confNo);
-
-            if (!result.isOk()) {
+            if (controller.findBookingByConfirmationNo(confNo) == null) {
                 System.out.println(
                         "Booking not found. Please try again.\n"
                 );
@@ -319,7 +323,7 @@ public class FrontDeskUI {
      * case-insensitive match can't be hashed to a single bucket the way an
      * exact key can. Keeping both here makes the trade-off easy to point to.
      */
-    
+
     private void runBookingEnquiryMenu() {
 
     boolean running = true;
@@ -369,7 +373,7 @@ public class FrontDeskUI {
         }
         }
     }
-    
+
     private void runSearchMenu() {
         boolean inSearch = true;
 
@@ -391,9 +395,8 @@ public class FrontDeskUI {
             switch (choice) {
                 case "1":
                     String confNo = readConfNo();
-                    printResult(
-                            controller.searchByConfirmationNo(confNo)
-                    );
+                    Booking booking = controller.findBookingByConfirmationNo(confNo);
+                    printBookingTable(new Booking[] { booking });
                     pressEnterToContinue();
                     break;
 
@@ -404,9 +407,21 @@ public class FrontDeskUI {
 
                     String name = scanner.nextLine().trim();
 
-                    printResult(
-                            controller.searchByGuestName(name)
-                    );
+                    String nameError = controller.validateGuestName(name);
+
+                    if (nameError != null) {
+                        System.out.println("Error: " + nameError);
+                    } else {
+                        Booking[] matches = controller.findBookingsByGuestName(name);
+
+                        if (matches.length == 0) {
+                            System.out.println(
+                                    "Error: No booking found for guest name: " + name
+                            );
+                        } else {
+                            printGuestSearchResults(matches);
+                        }
+                    }
 
                     pressEnterToContinue();
                     break;
@@ -428,19 +443,27 @@ public class FrontDeskUI {
     private void handleAvailability() {
         clearScreen();
         printBanner(BANNER_CHECKROOM);
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         String confNo = readConfNo();
-        ControllerResult result = controller.checkAssignedRoomStatus(confNo);
-        printResult(result);
+        Booking booking = controller.findBookingByConfirmationNo(confNo);
+        printRoomStatus(booking);
     }
 
     private void handleBilling() {
         clearScreen();
         printBanner(BANNER_BILLING);
-        System.out.print("------------------------------------------------------------------------------\n");
+        System.out.print(LINE_SHORT + "\n");
         String confNo = readConfNo();
-        ControllerResult result = controller.getBillingDetails(confNo);
-        printResult(result);
+        Booking booking = controller.findBookingByConfirmationNo(confNo);
+
+        if (booking.getRoom() == null) {
+            System.out.println(
+                    "Error: Room information for this booking could not be found."
+            );
+            return;
+        }
+
+        System.out.println(formatBillingDetails(booking));
     }
 
     private void handleCheckOut() {
@@ -454,12 +477,12 @@ public class FrontDeskUI {
 
         String confNo = readConfNo();
 
-        // Get billing details
-        ControllerResult billing =
-                controller.getBillingDetails(confNo);
+        Booking booking = controller.findBookingByConfirmationNo(confNo);
 
-        if (!billing.isOk()) {
-            printResult(billing);
+        if (booking.getRoom() == null) {
+            System.out.println(
+                "\nError: Room information for this booking could not be found."
+            );
             return;
         }
 
@@ -557,8 +580,10 @@ public class FrontDeskUI {
         }
 
         // Show billing after checkout-date validation
+        String billingDetails = formatBillingDetails(booking);
+
         System.out.println(
-                billing.getMessage()
+                billingDetails
         );
 
         // ───────────────── Payment ─────────────────
@@ -668,7 +693,7 @@ public class FrontDeskUI {
             printPaymentReceipt(
                     confNo,
                     method,
-                    billing.getMessage(),
+                    billingDetails,
                     paymentResult.getMessage()
             );
 
@@ -771,7 +796,7 @@ public class FrontDeskUI {
             "------------------------------------------------------------------------------"
         );
     }
-    
+
     private void printPaymentReceipt(
         String confNo,
         String method,
@@ -847,23 +872,17 @@ public class FrontDeskUI {
 
             switch (choice) {
                 case "1":
-                    printResult(
-                            controller.viewAllBookings("checkin")
-                    );
+                    printBookingListWithTotal(controller.getAllBookingsSorted("checkin"));
                     pressEnterToContinue();
                     break;
 
                 case "2":
-                    printResult(
-                            controller.viewAllBookings("roomtype")
-                    );
+                    printBookingListWithTotal(controller.getAllBookingsSorted("roomtype"));
                     pressEnterToContinue();
                     break;
 
                 case "3":
-                    printResult(
-                            controller.viewAllBookings("status")
-                    );
+                    printBookingListWithTotal(controller.getAllBookingsSorted("status"));
                     pressEnterToContinue();
                     break;
 
@@ -880,7 +899,7 @@ public class FrontDeskUI {
             }
         }
     }
-    
+
     private void runGuestMovementMenu() {
 
         boolean running = true;
@@ -913,8 +932,10 @@ public class FrontDeskUI {
                             "------------------------------------------------------------------------------"
                     );
 
-                    printResult(
-                            controller.getTodaysArrivals()
+                    printMovementList(
+                            controller.getTodaysArrivals(),
+                            "No arrivals scheduled for today.",
+                            "Total Arrivals: "
                     );
 
                     pressEnterToContinue();
@@ -929,8 +950,10 @@ public class FrontDeskUI {
                             "------------------------------------------------------------------------------"
                     );
 
-                    printResult(
-                            controller.getTodaysDepartures()
+                    printMovementList(
+                            controller.getTodaysDepartures(),
+                            "No departures scheduled for today.",
+                            "Total Departures: "
                     );
 
                     pressEnterToContinue();
@@ -983,7 +1006,7 @@ public class FrontDeskUI {
                     pressEnterToContinue();
                     break;
                 case "4":
-                    printResult(controller.quickStats());
+                    printOperationalStats(controller.getOperationalStats());
                     pressEnterToContinue();
                     break;
                 case "0":
@@ -1001,10 +1024,10 @@ public class FrontDeskUI {
 
     private void handleRevenueReport() {
 
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.println("                              REVENUE REPORT");
-        System.out.println("------------------------------------------------------------------------------");
-     
+        System.out.println(LINE_SHORT);
+
         LocalDate start =
                 readOptionalDate(
                         "Filter check-out date FROM (YYYY-MM-DD, blank to skip): "
@@ -1017,20 +1040,58 @@ public class FrontDeskUI {
 
         System.out.println();
 
-        ControllerResult result =
-            controller.revenueReport(start, end);
+        Booking[] bookings = controller.getRevenueReportBookings(start, end);
 
-        printResult(result);
+        if (bookings.length == 0) {
+            System.out.println("No paid bookings match the given date range.");
+            return;
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "%-10s %-20s %-8s %-12s %s%n",
+                "Conf#", "Guest", "Nights", "Status", "Total (RM)"
+        );
+
+        System.out.println(LINE_SHORT);
+
+        double grandTotal = 0;
+
+        for (Booking b : bookings) {
+
+            double total = FrontDeskController.calculateTotal(b);
+            grandTotal += total;
+
+            System.out.printf(
+                    "%-10s %-20s %-8d %-12s %.2f%n",
+                    b.getConfirmationNo(),
+                    b.getHolderName(),
+                    FrontDeskController.nightsBetween(b),
+                    b.getBookingStatus(),
+                    total
+            );
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "Total Revenue Collected: RM %.2f (%d paid booking(s))%n",
+                grandTotal,
+                bookings.length
+        );
+
+        System.out.println(LINE_SHORT);
     }
-    
+
     private void handleOutstandingPaymentsReport() {
 
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.println("                     OUTSTANDING PAYMENTS REPORT");
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.println("Booking Status Options:");
         System.out.println("Confirmed | CheckedIn | CheckedOut | Cancelled");
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.print("Filter by booking status (leave blank for all): ");
 
         String status = scanner.nextLine().trim();
@@ -1047,33 +1108,106 @@ public class FrontDeskUI {
 
         System.out.println();
 
-        ControllerResult result =
-                controller.outstandingPaymentsReport(
-                        status.isBlank()
-                                ? null
-                                : status,
-                        start,
-                        end
-                );
+        Booking[] bookings = controller.getOutstandingPaymentsBookings(
+                status.isBlank() ? null : status,
+                start,
+                end
+        );
 
-        printResult(result);
+        if (bookings.length == 0) {
+            System.out.println("No outstanding payments match the given filters.");
+            return;
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "%-10s %-20s %-12s %s%n",
+                "Conf#", "Guest", "Status", "Amount Due (RM)"
+        );
+
+        System.out.println(LINE_SHORT);
+
+        double totalOutstanding = 0;
+
+        for (Booking b : bookings) {
+
+            double due = FrontDeskController.calculateTotal(b);
+            totalOutstanding += due;
+
+            System.out.printf(
+                    "%-10s %-20s %-12s %.2f%n",
+                    b.getConfirmationNo(),
+                    b.getHolderName(),
+                    b.getBookingStatus(),
+                    due
+            );
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "Total Outstanding: RM %.2f (%d booking(s))%n",
+                totalOutstanding,
+                bookings.length
+        );
+
+        System.out.println(LINE_SHORT);
     }
-        
-        private void handleRoomStatusReport() {
-        System.out.println("------------------------------------------------------------------------------");
+
+    private void handleRoomStatusReport() {
+        System.out.println(LINE_SHORT);
         System.out.println("                            ROOM STATUS REPORT");
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.println("Room Status Options:");
         System.out.println("Available | Occupied | Dirty | CleaningInProgress | Inspected | ");
         System.out.println("ReadyForCheckIn | Maintenance");
-        System.out.println("------------------------------------------------------------------------------");
+        System.out.println(LINE_SHORT);
         System.out.print("Filter by room status (leave blank for all): ");
 
         String statusFilter = scanner.nextLine().trim();
         System.out.println();
-        ControllerResult result = controller.roomStatusReport(statusFilter);
 
-        printResult(result);
+        Room[] allRooms = controller.getRoomsByStatus(null);
+
+        if (allRooms.length == 0) {
+            System.out.println("No room records found.");
+            return;
+        }
+
+        Room[] rooms = statusFilter.isBlank()
+                ? allRooms
+                : controller.getRoomsByStatus(statusFilter);
+
+        if (rooms.length == 0) {
+            System.out.println("No rooms match the given status filter.");
+            return;
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "%-12s %-20s %-15s %s%n",
+                "Room No.", "Room Type", "Rate (RM)", "Status"
+        );
+
+        System.out.println(LINE_SHORT);
+
+        for (Room room : rooms) {
+            System.out.printf(
+                    "%-12s %-20s %-15.2f %s%n",
+                    room.getRoomNo(),
+                    room.getRoomType(),
+                    room.getPrice(),
+                    room.getStatus()
+            );
+        }
+
+        System.out.println(LINE_SHORT);
+
+        System.out.printf("Total Rooms: %d%n", rooms.length);
+
+        System.out.println(LINE_SHORT);
     }
 
     private LocalDate readOptionalDate(String prompt) {
@@ -1091,6 +1225,176 @@ public class FrontDeskUI {
         }
     }
 
+    // ───────────────────── Formatting helpers ─────────────────────
+    // Every dashed border, header row, and column layout for the Front Desk
+    // module lives below. FrontDeskController never builds display text.
+
+    private void printBookingTableHeader() {
+        System.out.println(LINE_LONG);
+        System.out.printf(
+                "%-10s %-20s %-8s %-12s %-12s %s%n",
+                "Conf#", "Guest", "Room", "Type", "Status", "Check-In -> Check-Out"
+        );
+        System.out.println(LINE_LONG);
+    }
+
+    private void printBookingRow(Booking booking) {
+        System.out.printf(
+                "%-10s %-20s %-8s %-12s %-12s %s -> %s%n",
+                booking.getConfirmationNo(),
+                booking.getHolderName(),
+                booking.getRoom().getRoomNo(),
+                booking.getRoom().getRoomType(),
+                booking.getBookingStatus(),
+                booking.getCheckInDate(),
+                booking.getCheckOutDate()
+        );
+    }
+
+    private void printBookingTable(Booking[] bookings) {
+        printBookingTableHeader();
+        for (Booking b : bookings) {
+            printBookingRow(b);
+        }
+        System.out.println(LINE_LONG);
+    }
+
+    private void printGuestSearchResults(Booking[] matches) {
+        printBookingTableHeader();
+        for (Booking b : matches) {
+            printBookingRow(b);
+        }
+        System.out.println(LINE_LONG);
+        System.out.println();
+        System.out.println("Total Matches: " + matches.length);
+    }
+
+    private void printBookingListWithTotal(Booking[] bookings) {
+        if (bookings.length == 0) {
+            System.out.println("No bookings found.");
+            return;
+        }
+        printBookingTableHeader();
+        for (Booking b : bookings) {
+            printBookingRow(b);
+        }
+        System.out.println(LINE_LONG);
+        System.out.println("Total Bookings: " + bookings.length);
+        System.out.println(LINE_LONG);
+    }
+
+    private void printRoomStatus(Booking booking) {
+        System.out.println();
+        System.out.println(LINE_SHORT);
+
+        System.out.printf(
+                "%-10s %-20s %-8s %-16s %s%n",
+                "Conf#", "Guest", "Room", "Type", "Status"
+        );
+
+        System.out.println(LINE_SHORT);
+
+        Room room = booking.getRoom();
+
+        System.out.printf(
+                "%-10s %-20s %-8s %-16s %s%n",
+                booking.getConfirmationNo(),
+                booking.getHolderName(),
+                room.getRoomNo(),
+                room.getRoomType(),
+                room.getStatus()
+        );
+
+        System.out.println(LINE_SHORT);
+    }
+
+    private String formatBillingDetails(Booking booking) {
+        long nights = FrontDeskController.nightsBetween(booking);
+        double total = FrontDeskController.calculateTotal(booking);
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("\n").append(LINE_SHORT).append("\n");
+        sb.append(String.format("%45s%n", "BILLING DETAILS"));
+        sb.append(LINE_SHORT).append("\n");
+
+        sb.append(String.format("%-17s: %s%n", "Confirmation No.", booking.getConfirmationNo()));
+        sb.append(String.format("%-17s: %s%n", "Guest Name", booking.getHolderName()));
+        sb.append(String.format(
+                "%-17s: %s (%s)%n",
+                "Room", booking.getRoom().getRoomNo(), booking.getRoom().getRoomType()
+        ));
+        sb.append(String.format("%-17s: RM%.2f / night%n", "Room Rate", booking.getRoom().getPrice()));
+        sb.append(String.format("%-17s: %d%n", "Number of Nights", nights));
+
+        sb.append(LINE_SHORT).append("\n");
+
+        sb.append(String.format("%-17s: RM%.2f%n", "Total Amount", total));
+
+        sb.append(LINE_SHORT);
+
+        return sb.toString();
+    }
+
+    private void printMovementList(Booking[] bookings, String noneMessage, String totalLabel) {
+        if (bookings.length == 0) {
+            System.out.println(noneMessage);
+            return;
+        }
+
+        System.out.printf(
+                "%-10s %-20s %-8s %-12s%n",
+                "Conf#", "Guest", "Room", "Status"
+        );
+
+        System.out.println(LINE_SHORT);
+
+        for (Booking b : bookings) {
+            System.out.printf(
+                    "%-10s %-20s %-8s %-12s%n",
+                    b.getConfirmationNo(),
+                    b.getHolderName(),
+                    b.getRoom().getRoomNo(),
+                    b.getBookingStatus()
+            );
+        }
+
+        System.out.println(LINE_SHORT);
+        System.out.println(totalLabel + bookings.length);
+    }
+
+    private void printOperationalStats(FrontDeskController.OperationalStats s) {
+        System.out.println();
+        System.out.println(LINE_SHORT);
+        System.out.println("                           OPERATIONAL SUMMARY");
+        System.out.println(LINE_SHORT);
+        System.out.println("BOOKING SUMMARY");
+        System.out.println(LINE_SHORT);
+
+        System.out.printf("%-25s : %d%n", "Total Bookings", s.totalBookings);
+
+        System.out.println();
+        System.out.println("ROOM SUMMARY");
+        System.out.println(LINE_SHORT);
+
+        System.out.printf("%-25s : %d%n", "Available", s.available);
+        System.out.printf("%-25s : %d%n", "Occupied", s.occupied);
+        System.out.printf("%-25s : %d%n", "Dirty", s.dirty);
+        System.out.printf("%-25s : %d%n", "Cleaning In Progress", s.cleaningInProgress);
+        System.out.printf("%-25s : %d%n", "Inspected", s.inspected);
+        System.out.printf("%-25s : %d%n", "Ready For Check-In", s.readyForCheckIn);
+        System.out.printf("%-25s : %d%n", "Maintenance", s.maintenance);
+
+        System.out.println();
+        System.out.println("PAYMENT SUMMARY");
+        System.out.println(LINE_SHORT);
+
+        System.out.printf("%-25s : %d%n", "Payments Processed", s.totalPayments);
+        System.out.printf("%-25s : RM %.2f%n", "Total Revenue Collected", s.totalRevenue);
+
+        System.out.println(LINE_SHORT);
+    }
+
     private void printResult(ControllerResult result) {
         if (result.isOk()) {
             System.out.println(result.getMessage());
@@ -1098,5 +1402,5 @@ public class FrontDeskUI {
             System.out.println("Error: " + result.getMessage());
         }
     }
-    
+
 }
