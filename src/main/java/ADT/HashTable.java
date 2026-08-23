@@ -124,6 +124,21 @@ public class HashTable<K, V> implements HashTableInterface<K, V> {
     }
 
     @Override
+    public ListInterface<K> keys() {
+        ListInterface<K> all = new ArrayList<>();
+
+        for (Node<K, V> head : buckets) {
+            Node<K, V> current = head;
+            while (current != null) {
+                all.add(current.key);
+                current = current.next;
+            }
+        }
+
+        return all;
+    }
+
+    @Override
     public ListInterface<V> values() {
 
         ListInterface<V> all =
