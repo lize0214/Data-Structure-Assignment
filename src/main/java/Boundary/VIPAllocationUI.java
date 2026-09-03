@@ -41,6 +41,8 @@ public class VIPAllocationUI {
             String keyword, String tier, String roomType, Boolean preferenceMatched,
             long minimumWaiting, String sortBy) { }
 
+    private record OptionalInput(String value, boolean cancelled) { }
+
     /**
      * Constructs the UI with its own controller instances.
      * Each UI invocation creates fresh controller instances so data
@@ -66,7 +68,7 @@ public class VIPAllocationUI {
         while (!exit) {
             clearScreen();
             printMenu();
-            int choice = readInt("Enter your choice: ");
+            int choice = readChoiceOrReturn("Enter your choice (Enter/0 to return): ", 0, 6);
 
             switch (choice) {
                 case 1 -> handleAddVIPMember();
@@ -97,9 +99,11 @@ public class VIPAllocationUI {
 
 
     private void enterToReturn() {
-        System.out.print("Enter 0 to return: ");
-        while (!scanner.nextLine().trim().equals("0")) {
-            System.out.print("Invalid input. Please enter 0 to return: ");
+        System.out.print("Press Enter or enter 0 to return: ");
+        while (true) {
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty() || input.equals("0")) return;
+            System.out.print("Invalid input. Press Enter or enter 0 to return: ");
         }
     }
 
@@ -138,12 +142,18 @@ public class VIPAllocationUI {
         clearScreen();
         printPageHeader("ADD VIP MEMBER TO PRIORITY QUEUE", PAGE_WIDTH);
 
-        String memberId = readString("Member ID: ");
-        String preferredRoomType = readOptionalString("Preferred Room Type (Single/Deluxe/Suite/Presidential, or blank for any): ");
+        boolean addAnother = true;
+        while (addAnother) {
+            String memberId = readValidVIPMemberId();
+            if (memberId == null) return;
 
-        ControllerResult result = vipController.enqueueVIPMember(memberId, preferredRoomType);
-        printResult(result);
-        enterToReturn();
+            OptionalInput preferredRoomTypeInput = readValidPreferredRoomType();
+            if (preferredRoomTypeInput.cancelled()) return;
+
+            ControllerResult result = vipController.enqueueVIPMember(memberId, preferredRoomTypeInput.value());
+            printResult(result);
+            addAnother = askToContinue("Add another VIP member? (y/n; Enter/0 to return): ");
+        }
     }
 
     private void handleAllocateRoom() {
@@ -190,19 +200,17 @@ public class VIPAllocationUI {
         clearScreen();
         printPageHeader("REMOVE VIP MEMBER FROM QUEUE", PAGE_WIDTH);
 
-        String memberId = readString("Member ID to remove: ");
+        boolean removeAnother = true;
+        while (removeAnother) {
+            String memberId = readValidVIPQueueMemberIdForRemoval();
+            if (memberId == null) return;
 
-        System.out.print("Are you sure you want to remove member " + memberId + "? (y/n): ");
-        String confirm = scanner.nextLine().trim().toLowerCase();
-        if (!confirm.equals("y") && !confirm.equals("yes")) {
-            System.out.println("Cancelled.");
-            enterToReturn();
-            return;
+            if (!confirmRemoval(memberId)) return;
+
+            ControllerResult result = vipController.dequeueVIPMember(memberId);
+            printResult(result);
+            removeAnother = askToContinue("Remove another VIP member? (y/n; Enter/0 to return): ");
         }
-
-        ControllerResult result = vipController.dequeueVIPMember(memberId);
-        printResult(result);
-        enterToReturn();
     }
 
     private void handleViewAvailableRooms() {
@@ -242,7 +250,7 @@ public class VIPAllocationUI {
             System.out.println("                   0. Return to VIP Allocation Menu");
             System.out.println("-".repeat(PAGE_WIDTH));
 
-            int choice = readInt("Enter your choice: ");
+            int choice = readChoiceOrReturn("Enter your choice (Enter/0 to return): ", 0, 2);
             switch (choice) {
                 case 1 -> handleQueueDemandReport();
                 case 2 -> handleAllocationPerformanceReport();
@@ -264,7 +272,7 @@ public class VIPAllocationUI {
             displayQueueDemandReport(criteria);
             System.out.println("\nActions: 1=Advanced Search / Filter / Sort"
                     + " | 2=Reset / View All | 0=Return to Reports");
-            switch (readChoice("Select action: ", 0, 2)) {
+            switch (readChoiceOrReturn("Select action (Enter/0 to return): ", 0, 2)) {
                 case 1 -> criteria = readAdvancedQueueReportCriteria();
                 case 2 -> criteria = defaultQueueReportCriteria();
                 case 0 -> returnToReports = true;
@@ -349,7 +357,7 @@ public class VIPAllocationUI {
             displayAllocationPerformanceReport(criteria);
             System.out.println("\nActions: 1=Advanced Search / Filter / Sort"
                     + " | 2=Reset / View All | 0=Return to Reports");
-            switch (readChoice("Select action: ", 0, 2)) {
+            switch (readChoiceOrReturn("Select action (Enter/0 to return): ", 0, 2)) {
                 case 1 -> criteria = readAdvancedAllocationReportCriteria();
                 case 2 -> criteria = defaultAllocationReportCriteria();
                 case 0 -> returnToReports = true;
@@ -592,6 +600,76 @@ public class VIPAllocationUI {
 
     // ───────────────────── Input Helpers ─────────────────────
 
+    private String readValidVIPMemberId() {
+        while (true) {
+            String memberId = readString("Member ID (Enter/0 to cancel): ");
+            if (isExitInput(memberId)) {
+                System.out.println("Cancelled.");
+                return null;
+            }
+
+            ControllerResult result = vipController.validateMemberForVIPQueue(memberId);
+            if (result.isOk()) return memberId;
+            System.out.println("Invalid member ID: " + result.getMessage() + " Please try again.");
+        }
+    }
+
+    private OptionalInput readValidPreferredRoomType() {
+        while (true) {
+            String roomType = readString(
+                    "Preferred Room Type (Single/Deluxe/Suite/Presidential; blank for any; 0 to cancel): ");
+            if (roomType.equals("0")) {
+                System.out.println("Cancelled.");
+                return new OptionalInput(null, true);
+            }
+
+            ControllerResult result = vipController.validatePreferredRoomType(roomType);
+            if (result.isOk()) return new OptionalInput(roomType.isEmpty() ? null : roomType, false);
+            System.out.println("Invalid room type: " + result.getMessage() + " Please try again.");
+        }
+    }
+
+    private String readValidVIPQueueMemberIdForRemoval() {
+        while (true) {
+            String memberId = readString("Member ID to remove (Enter/0 to cancel): ");
+            if (isExitInput(memberId)) {
+                System.out.println("Cancelled.");
+                return null;
+            }
+
+            ControllerResult result = vipController.validateMemberForVIPQueueRemoval(memberId);
+            if (result.isOk()) return memberId;
+            System.out.println("Invalid member ID: " + result.getMessage() + " Please try again.");
+        }
+    }
+
+    private boolean isExitInput(String input) {
+        return input == null || input.isEmpty() || input.equals("0");
+    }
+
+    private boolean confirmRemoval(String memberId) {
+        while (true) {
+            System.out.print("Remove member " + memberId + "? (y/n; Enter/0 to cancel): ");
+            String input = scanner.nextLine().trim().toLowerCase();
+            if (input.equals("y") || input.equals("yes")) return true;
+            if (input.equals("n") || input.equals("no") || isExitInput(input)) {
+                System.out.println("Cancelled.");
+                return false;
+            }
+            System.out.println("Invalid confirmation. Please enter y, n, Enter, or 0.");
+        }
+    }
+
+    private boolean askToContinue(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim().toLowerCase();
+            if (input.equals("y") || input.equals("yes")) return true;
+            if (input.equals("n") || input.equals("no") || isExitInput(input)) return false;
+            System.out.println("Invalid choice. Please enter y, n, Enter, or 0.");
+        }
+    }
+
     private String readString(String prompt) {
         System.out.print(prompt);
         return scanner.nextLine().trim();
@@ -623,6 +701,22 @@ public class VIPAllocationUI {
             int choice = readInt(prompt);
             if (choice >= minimum && choice <= maximum) return choice;
             System.out.printf("Please enter a number from %d to %d.%n", minimum, maximum);
+        }
+    }
+
+    private int readChoiceOrReturn(String prompt, int minimum, int maximum) {
+        while (true) {
+            System.out.print(prompt);
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty() || input.equals("0")) return 0;
+            try {
+                int choice = Integer.parseInt(input);
+                if (choice >= minimum && choice <= maximum) return choice;
+            } catch (NumberFormatException ignored) {
+                // A single validation message is printed below.
+            }
+            System.out.printf("Please enter a number from %d to %d, or press Enter to return.%n",
+                    minimum, maximum);
         }
     }
 
