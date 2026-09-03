@@ -74,6 +74,39 @@ public class VIPAllocationController {
     // ───────────────────── Enqueue ─────────────────────
 
     /**
+     * Checks whether a member can be added to the VIP priority queue without
+     * changing the queue. This supports field-by-field validation in the UI.
+     */
+    public ControllerResult validateMemberForVIPQueue(String memberId) {
+        String requiredError = ValidationUtility.validateRequired(memberId, "Member ID");
+        if (requiredError != null) return ControllerResult.fail(requiredError);
+
+        String normalizedMemberId = memberId.trim();
+        Member member = memberController.findByKey(normalizedMemberId);
+        if (member == null) {
+            return ControllerResult.fail("Member not found: " + normalizedMemberId);
+        }
+
+        String tierError = ValidationUtility.validateVIPAllocationTier(member.getTier());
+        if (tierError != null) return ControllerResult.fail(tierError);
+
+        if (findEntryByMemberId(normalizedMemberId) != null) {
+            return ControllerResult.fail("Member " + normalizedMemberId + " is already in the VIP queue");
+        }
+        return ControllerResult.success();
+    }
+
+    /**
+     * Checks an optional room preference without changing the queue.
+     */
+    public ControllerResult validatePreferredRoomType(String preferredRoomType) {
+        String roomTypeError = ValidationUtility.validateRoomType(preferredRoomType);
+        return roomTypeError == null
+                ? ControllerResult.success()
+                : ControllerResult.fail(roomTypeError);
+    }
+
+    /**
      * Adds a VIP member to the priority allocation queue.
      * <p>
      * Validates that the member exists and has a VIP tier
@@ -85,36 +118,14 @@ public class VIPAllocationController {
      * @return ControllerResult indicating success or failure
      */
     public ControllerResult enqueueVIPMember(String memberId, String preferredRoomType) {
-        ValidationUtility.ValidationAccumulator acc = new ValidationUtility.ValidationAccumulator();
-        acc.check(ValidationUtility.validateRequired(memberId, "Member ID"));
+        ControllerResult memberValidation = validateMemberForVIPQueue(memberId);
+        if (!memberValidation.isOk()) return memberValidation;
 
-        // Validate member exists and has VIP tier
-        Member member = null;
-        if (memberId != null && !memberId.trim().isEmpty()) {
-            member = memberController.findByKey(memberId.trim());
-            if (member == null) {
-                acc.check("Member not found: " + memberId);
-            }
-        }
+        ControllerResult roomTypeValidation = validatePreferredRoomType(preferredRoomType);
+        if (!roomTypeValidation.isOk()) return roomTypeValidation;
 
-        // Validate preferred room type (optional — null/empty is valid)
-        acc.check(ValidationUtility.validateRoomType(preferredRoomType));
-
-        if (acc.hasErrors()) {
-            return ControllerResult.fail(acc.getErrorMessage());
-        }
-
-        // Validate VIP tier eligibility
+        Member member = memberController.findByKey(memberId.trim());
         String tier = member.getTier();
-        String vipTierError = ValidationUtility.validateVIPAllocationTier(tier);
-        if (vipTierError != null) {
-            return ControllerResult.fail(vipTierError);
-        }
-
-        // Check for duplicate — same member already in queue
-        if (findEntryByMemberId(memberId.trim()) != null) {
-            return ControllerResult.fail("Member " + memberId + " is already in the VIP queue");
-        }
 
         int tierPriority = VIPQueueEntry.tierToPriority(tier);
         VIPQueueEntry entry = new VIPQueueEntry(
@@ -256,21 +267,29 @@ public class VIPAllocationController {
     // ───────────────────── Dequeue / Cancel ─────────────────────
 
     /**
+     * Checks whether a member is currently waiting in the VIP queue without
+     * removing the entry.
+     */
+    public ControllerResult validateMemberForVIPQueueRemoval(String memberId) {
+        String requiredError = ValidationUtility.validateRequired(memberId, "Member ID");
+        if (requiredError != null) return ControllerResult.fail(requiredError);
+
+        String normalizedMemberId = memberId.trim();
+        if (findEntryByMemberId(normalizedMemberId) == null) {
+            return ControllerResult.fail("Member " + normalizedMemberId + " is not in the VIP queue");
+        }
+        return ControllerResult.success();
+    }
+
+    /**
      * Removes a specific VIP member from the priority queue (cancellation).
      *
      * @param memberId the member ID to remove
      * @return ControllerResult indicating success or failure
      */
     public ControllerResult dequeueVIPMember(String memberId) {
-        String error = ValidationUtility.validateRequired(memberId, "Member ID");
-        if (error != null) {
-            return ControllerResult.fail(error);
-        }
-
-        VIPQueueEntry target = findEntryByMemberId(memberId.trim());
-        if (target == null) {
-            return ControllerResult.fail("Member " + memberId + " is not in the VIP queue");
-        }
+        ControllerResult validation = validateMemberForVIPQueueRemoval(memberId);
+        if (!validation.isOk()) return validation;
 
         // Rebuild heap without the target entry
         ListInterface<VIPQueueEntry> allEntries = new ADT.ArrayList<>();
