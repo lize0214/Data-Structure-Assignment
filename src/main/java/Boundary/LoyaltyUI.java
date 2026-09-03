@@ -107,14 +107,25 @@ public class LoyaltyUI {
         "   (_/     `-._)`\\___.' (_/        `-.'      (_/     `-._)(_/  `-(_.--'       "
     };
 
-    // Displays the selected banner.
-    private void printBanner(String[] banner) {
+    // Displays a banner centered within the UI width.
+    private void printCenteredBanner(String[] banner) {
+
         if (banner == null || banner.length == 0) {
             return;
         }
+
         System.out.println();
+
         for (String line : banner) {
-            System.out.println(line);
+
+            int padding = Math.max(
+                    0,
+                    (WIDTH - line.length()) / 2
+            );
+
+            System.out.println(
+                    " ".repeat(padding) + line
+            );
         }
     }
 
@@ -141,6 +152,41 @@ public class LoyaltyUI {
     // Formats points with comma separators.
     private String formatPoints(int points) {
         return String.format("%,d", points);
+    }
+
+    // Returns the length of text safely.
+    private int textLength(String text) {
+        return text == null ? 0 : text.length();
+    }
+
+// Cleans text so it stays on one table line.
+    private String safeText(String text) {
+        if (text == null || text.isBlank()) {
+            return "-";
+        }
+
+        return text
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .trim();
+    }
+
+// Prints a table row using dynamic column widths.
+    private void printDynamicRow(String[] values, int[] widths) {
+
+        System.out.print("|");
+
+        for (int i = 0; i < values.length; i++) {
+
+            String value = safeText(values[i]);
+
+            System.out.printf(
+                    " %-" + widths[i] + "s |",
+                    value
+            );
+        }
+
+        System.out.println();
     }
 
     // Builds a compact member summary.
@@ -225,30 +271,72 @@ public class LoyaltyUI {
         );
     }
 
-    // Gets the member ID using the current member when available.
+    // Gets an existing member ID using the current member when available.
     private String resolveMemberId(String prompt) {
-        if (currentMember != null) {
-            System.out.print(prompt + "(blank = " + currentMember.getMemberId() + ") : ");
 
-            String input = scanner.nextLine().trim();
+        while (true) {
+
+            if (currentMember != null) {
+
+                System.out.print(
+                        prompt
+                        + "(blank = "
+                        + currentMember.getMemberId()
+                        + ") : "
+                );
+
+            } else {
+
+                System.out.print(prompt);
+            }
+
+            String input
+                    = scanner.nextLine().trim();
 
             if (isCancelKeyword(input)) {
                 throw new ActionCancelledException();
             }
 
+            // Use current member when input is blank.
             if (input.isBlank()) {
-                return currentMember.getMemberId();
+
+                if (currentMember != null) {
+                    return currentMember.getMemberId();
+                }
+
+                System.out.println(
+                        "Member ID cannot be empty."
+                );
+
+                continue;
             }
 
+            // Check ID format.
             if (!input.matches("[A-Za-z0-9]+")) {
-                System.out.println("Invalid format - use letters and numbers only.");
-                return resolveMemberId(prompt);
+
+                System.out.println(
+                        "Invalid format - use letters and numbers only, "
+                        + "no spaces or symbols."
+                );
+
+                continue;
+            }
+
+            // Check whether the member actually exists.
+            Member member
+                    = loyaltyController.searchMemberById(input);
+
+            if (member == null) {
+
+                System.out.println(
+                        "Member not found. Please enter a valid Member ID."
+                );
+
+                continue;
             }
 
             return input;
         }
-
-        return readValidId(prompt);
     }
 
     // Refreshes the current member if it matches the ID.
@@ -318,6 +406,43 @@ public class LoyaltyUI {
                 return input;
             }
             System.out.println("Invalid format - use letters and numbers only, no spaces or symbols.");
+        }
+    }
+
+    // Reads and validates an existing member ID.
+    private String readExistingMemberId(String prompt) {
+
+        while (true) {
+
+            String input = readString(prompt).trim();
+
+            if (isCancelKeyword(input)) {
+                throw new ActionCancelledException();
+            }
+
+            if (!input.matches("[A-Za-z0-9]+")) {
+
+                System.out.println(
+                        "Invalid format - use letters and numbers only, "
+                        + "no spaces or symbols."
+                );
+
+                continue;
+            }
+
+            Member member
+                    = loyaltyController.searchMemberById(input);
+
+            if (member == null) {
+
+                System.out.println(
+                        "Member not found. Please enter a valid Member ID."
+                );
+
+                continue;
+            }
+
+            return input;
         }
     }
 
@@ -539,7 +664,7 @@ public class LoyaltyUI {
     private void printMainMenu() {
 
         clearScreen();
-        printBanner(BANNER_MAIN);
+        printCenteredBanner(BANNER_MAIN);
         printHeader("LOYALTY & REWARDS");
 
         if (currentMember != null) {
@@ -566,7 +691,7 @@ public class LoyaltyUI {
         while (running) {
 
             clearScreen();
-            printBanner(BANNER_MEMBER);
+            printCenteredBanner(BANNER_MEMBER);
             printHeader("MEMBER DASHBOARD");
 
             processExpiredPointsAndNotify();
@@ -631,7 +756,7 @@ public class LoyaltyUI {
     private void clearCurrentMember() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("CLEAR CURRENT MEMBER");
 
         if (currentMember == null) {
@@ -675,10 +800,11 @@ public class LoyaltyUI {
     }
 
     // Handles earning points for a member.
+// Handles earning points for a member.
     private void earnPoints() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("EARN REWARD POINTS");
         printCurrentMemberBanner();
         printBackHint();
@@ -721,46 +847,41 @@ public class LoyaltyUI {
         int awarded
                 = after.getPoints() - previousPoints;
 
-        clearScreen();
-        printBanner(BANNER_MEMBER);
-        printHeader("POINTS EARNED SUCCESSFULLY");
+        double multiplier
+                = loyaltyController.getTierMultiplier(tierBefore);
 
-        double multiplier = loyaltyController.getTierMultiplier(tierBefore);
+        // Get tier progress information.
+        String tierProgress
+                = loyaltyController.getTierProgressDisplay(
+                        after.getTier(),
+                        after.getPoints()
+                );
 
-        System.out.println("POINTS CALCULATION");
-        printDivider();
+        String[] progressLines
+                = tierProgress.split("\\R");
 
-        System.out.printf("%-25s %s%n", "Member",
-                after.getMemberId() + " - " + after.getName());
-        System.out.printf("%-25s %s pts%n",
-                "Previous Balance", formatPoints(previousPoints));
+        String progressTo
+                = progressLines.length > 0
+                        ? progressLines[0]
+                        : "-";
 
-        System.out.println();
+        String progressBar
+                = progressLines.length > 2
+                        ? progressLines[2]
+                        : "";
 
-        System.out.println("                    " + formatPoints(points)
-                + " pts x" + String.format("%.2f", multiplier));
+        String pointsNeeded
+                = progressLines.length > 3
+                        ? progressLines[3]
+                        : "";
 
-        System.out.printf("%-25s +%s pts%n",
-                "Points Awarded", formatPoints(awarded));
+        pointsNeeded
+                = pointsNeeded
+                        .replace("Need ", "")
+                        .trim();
 
-        printDivider();
-        System.out.printf("%-25s %s pts%n", "New Balance", formatPoints(after.getPoints()));
-        System.out.printf("%-25s %s%n", "Current Tier", after.getTier());
-
-        String tierProgress = loyaltyController.getTierProgressDisplay(
-                after.getTier(),
-                after.getPoints()
-        );
-
-        String[] progressLines = tierProgress.split("\n");
-
-        if (progressLines.length >= 4) {
-            System.out.printf("%-25s %s%n", "Tier Progress", progressLines[0]);
-            System.out.printf("%-25s %s%n", "", "[" + progressLines[2] + "]");
-            System.out.printf("%-25s %s%n", "", progressLines[3]);
-        } else {
-            System.out.printf("%-25s %s%n", "Tier Progress", progressLines[0]);
-        }
+        // Get points expiry date.
+        String expiry = "-";
 
         ListInterface<PointsTransaction> historyAfter
                 = loyaltyController.getTransactionHistoryByMember(id);
@@ -768,20 +889,109 @@ public class LoyaltyUI {
         if (!historyAfter.isEmpty()) {
 
             PointsTransaction latest
-                    = historyAfter.getEntry(historyAfter.size());
+                    = historyAfter.getEntry(
+                            historyAfter.size()
+                    );
 
             if (latest.getExpiryDate() != null) {
 
-                System.out.printf(
-                        "%-25s %s%n",
-                        "Points Expiry",
-                        latest.getExpiryDate()
-                );
+                expiry
+                        = String.valueOf(
+                                latest.getExpiryDate()
+                        );
             }
         }
 
-        printDivider();
+        // ================================
+        // DISPLAY RESULT
+        // ================================
+        clearScreen();
+        printCenteredBanner(BANNER_MEMBER);
+        printHeader("POINTS EARNED SUCCESSFULLY");
 
+        System.out.println();
+
+        // ================================
+        // POINTS CALCULATION
+        // ================================
+        printBox(
+                "POINTS CALCULATION",
+                new String[]{
+                    String.format(
+                            "%-16s : %s",
+                            "Member",
+                            after.getMemberId()
+                            + " - "
+                            + after.getName()
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Previous Balance",
+                            formatPoints(previousPoints)
+                            + " pts"
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Calculation",
+                            formatPoints(points)
+                            + " pts x "
+                            + String.format(
+                                    "%.2f",
+                                    multiplier
+                            )
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Points Awarded",
+                            "+"
+                            + formatPoints(awarded)
+                            + " pts"
+                    )
+                }
+        );
+
+        System.out.println();
+
+        // ================================
+        // UPDATED MEMBER STATUS
+        // ================================
+        printBox(
+                "UPDATED MEMBER STATUS",
+                new String[]{
+                    String.format(
+                            "%-16s : %s",
+                            "New Balance",
+                            formatPoints(after.getPoints())
+                            + " pts"
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Current Tier",
+                            after.getTier()
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Tier Progress",
+                            progressTo
+                            + " ["
+                            + progressBar
+                            + "]"
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Points Needed",
+                            pointsNeeded
+                            + " more points"
+                    ),
+                    String.format(
+                            "%-16s : %s",
+                            "Points Expiry",
+                            expiry
+                    )
+                }
+        );
+
+        // Display tier change notice if the tier changed.
         printTierChangeNotice(
                 after,
                 tierBefore,
@@ -808,52 +1018,50 @@ public class LoyaltyUI {
     private void printMemberDetails(Member member) {
 
         int rank
-                = loyaltyController.getMemberRank(member.getMemberId());
+                = loyaltyController.getMemberRank(
+                        member.getMemberId()
+                );
 
         int totalMembers
                 = loyaltyController.getTotalMemberCount();
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("MEMBER DETAILS");
 
+        // ==================================================
+        // MEMBER INFORMATION
+        // ==================================================
+        System.out.println();
         System.out.println("MEMBER INFORMATION");
         printDivider();
 
         System.out.printf(
-                "%-25s %-25s%n",
-                "Field",
-                "Details"
-        );
-
-        printDivider();
-
-        System.out.printf(
-                "%-25s %-25s%n",
+                "%-20s : %-45s%n",
                 "Member ID",
                 member.getMemberId()
         );
 
         System.out.printf(
-                "%-25s %-25s%n",
+                "%-20s : %-45s%n",
                 "Name",
                 member.getName()
         );
 
         System.out.printf(
-                "%-25s %-25s%n",
+                "%-20s : %-45s%n",
                 "Membership Tier",
                 member.getTier()
         );
 
         System.out.printf(
-                "%-25s %-25s%n",
+                "%-20s : %-45s%n",
                 "Points Balance",
                 formatPoints(member.getPoints()) + " pts"
         );
 
         System.out.printf(
-                "%-25s #%d of %d%n",
+                "%-20s : #%d of %d%n",
                 "Member Ranking",
                 rank,
                 totalMembers
@@ -861,31 +1069,173 @@ public class LoyaltyUI {
 
         printDivider();
 
+        // ==================================================
+// TIER PROGRESS
+// ==================================================
         System.out.println();
         System.out.println("TIER PROGRESS");
         printDivider();
 
-        System.out.println(
-                loyaltyController.getTierProgressDisplay(
+        String progressDisplay
+                = loyaltyController.getTierProgressDisplay(
                         member.getTier(),
                         member.getPoints()
+                );
+
+        String[] progressLines
+                = progressDisplay.split("\\R");
+
+        String progressTo
+                = progressLines.length > 0
+                        ? progressLines[0].trim()
+                        : "";
+
+        String progressCurrentTier
+                = progressLines.length > 1
+                        ? progressLines[1].trim()
+                        : member.getTier();
+
+        String progressText
+                = progressLines.length > 2
+                        ? progressLines[2].trim()
+                        : "";
+
+        String pointsNeeded
+                = progressLines.length > 3
+                        ? progressLines[3].trim()
+                        : "";
+
+// ==================================================
+// HIGHEST TIER
+// ==================================================
+        boolean highestTier
+                = progressTo.toLowerCase().contains(
+                        "highest tier"
                 )
-        );
+                || member.getTier().equalsIgnoreCase("Platinum");
+
+        if (highestTier) {
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Current Tier",
+                    member.getTier()
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Next Tier",
+                    "Highest tier reached"
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Progress",
+                    "Completed"
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Points Needed",
+                    "No further points needed"
+            );
+
+        } else {
+
+            // ==================================================
+            // NORMAL TIER PROGRESS
+            // ==================================================
+            String progressBar = progressText;
+            String percentage = "";
+
+            int percentIndex
+                    = progressText.lastIndexOf("%");
+
+            if (percentIndex >= 0) {
+
+                int percentStart
+                        = progressText.lastIndexOf(" ");
+
+                if (percentStart >= 0
+                        && percentStart < percentIndex) {
+
+                    percentage
+                            = progressText.substring(
+                                    percentStart + 1
+                            ).trim();
+
+                    progressBar
+                            = progressText.substring(
+                                    0,
+                                    percentStart
+                            ).trim();
+                }
+            }
+
+            String nextTier
+                    = progressTo
+                            .replace(
+                                    "Progress to ",
+                                    ""
+                            )
+                            .trim();
+
+            String needed
+                    = pointsNeeded
+                            .replace(
+                                    "Need ",
+                                    ""
+                            )
+                            .trim();
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Current Tier",
+                    progressCurrentTier
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Next Tier",
+                    nextTier
+            );
+
+            System.out.printf(
+                    "%-20s : [%-30s] %s%n",
+                    "Progress",
+                    progressBar,
+                    percentage
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Points Needed",
+                    needed
+            );
+        }
 
         printDivider();
 
+        // ==================================================
+        // RECENT ACTIVITY
+        // ==================================================
         System.out.println();
         System.out.println("RECENT ACTIVITY");
         printDivider();
 
         RewardRedemption recent
-                = loyaltyController.getMostRecentRedemptionForMember(
-                        member.getMemberId()
-                );
+                = loyaltyController
+                        .getMostRecentRedemptionForMember(
+                                member.getMemberId()
+                        );
 
         if (recent == null) {
 
-            System.out.println("No recent redemption.");
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Last Redemption",
+                    "No recent redemption"
+            );
 
         } else {
 
@@ -895,27 +1245,217 @@ public class LoyaltyUI {
                     );
 
             String rewardName
-                    = (reward != null)
-                            ? reward.getRewardName()
+                    = reward != null
+                            ? safeText(
+                                    reward.getRewardName()
+                            )
                             : recent.getRewardId();
 
             System.out.printf(
-                    "%-25s %s - %s%n",
+                    "%-20s : %-45s%n",
                     "Last Redemption",
-                    rewardName,
-                    recent.getRedeemDate()
+                    rewardName
+            );
+
+            System.out.printf(
+                    "%-20s : %-45s%n",
+                    "Redemption Date",
+                    String.valueOf(
+                            recent.getRedeemDate()
+                    )
             );
         }
 
         printDivider();
 
+        // ==================================================
+        // POINTS EXPIRY
+        // ==================================================
+        printMemberDetailsExpiry(member.getMemberId());
+
+        pressEnterToContinue();
+    }
+
+    // Displays a compact points expiry box for Member Details only.
+    private void printMemberDetailsExpiry(String memberId) {
+
+        ListInterface<PointsTransaction> expiring
+                = loyaltyController.getExpiringSoonTransactions(memberId);
+
+        ListInterface<PointsTransaction> expired
+                = loyaltyController.getRecentlyExpiredTransactions(memberId);
+
         System.out.println();
-        System.out.println("POINTS EXPIRY");
-        printDivider();
 
-        printExpiryAlerts(member.getMemberId());
+        // ==========================================
+        // BUILD CONTENT FIRST
+        // ==========================================
+        java.util.ArrayList<String> lines
+                = new java.util.ArrayList<>();
 
-        printDivider();
+        // ---------- EXPIRING SOON ----------
+        lines.add("EXPIRING SOON");
+
+        if (expiring.isEmpty()) {
+
+            lines.add(
+                    "No points are currently expiring soon."
+            );
+
+        } else {
+
+            lines.add(
+                    String.format(
+                            "%-18s | %12s | %-12s | %10s",
+                            "Status",
+                            "Points",
+                            "Expires",
+                            "Days Left"
+                    )
+            );
+
+            for (int i = 1; i <= expiring.size(); i++) {
+
+                PointsTransaction t
+                        = expiring.getEntry(i);
+
+                String points
+                        = formatPoints(
+                                Math.abs(
+                                        t.getPointsChange()
+                                )
+                        ) + " pts";
+
+                String expiryDate
+                        = String.valueOf(
+                                t.getExpiryDate()
+                        );
+
+                String daysLeft
+                        = loyaltyController
+                                .getDaysUntilExpiry(t)
+                        + " days";
+
+                lines.add(
+                        String.format(
+                                "%-18s | %12s | %-12s | %10s",
+                                "Expiring Soon",
+                                points,
+                                expiryDate,
+                                daysLeft
+                        )
+                );
+            }
+        }
+
+        lines.add("");
+
+        // ---------- RECENTLY EXPIRED ----------
+        lines.add("RECENTLY EXPIRED");
+
+        if (expired.isEmpty()) {
+
+            lines.add(
+                    "No points have recently expired."
+            );
+
+        } else {
+
+            lines.add(
+                    String.format(
+                            "%-18s | %12s | %-12s",
+                            "Status",
+                            "Points",
+                            "Expired On"
+                    )
+            );
+
+            for (int i = 1; i <= expired.size(); i++) {
+
+                PointsTransaction t
+                        = expired.getEntry(i);
+
+                String points
+                        = "-"
+                        + formatPoints(
+                                Math.abs(
+                                        t.getPointsChange()
+                                )
+                        )
+                        + " pts";
+
+                String expiredDate
+                        = String.valueOf(
+                                t.getTransactionDate()
+                        );
+
+                lines.add(
+                        String.format(
+                                "%-18s | %12s | %-12s",
+                                "Points Expired",
+                                points,
+                                expiredDate
+                        )
+                );
+            }
+        }
+
+        // ==========================================
+        // CALCULATE EXACT BOX WIDTH
+        // ==========================================
+        int contentWidth = "POINTS EXPIRY".length();
+
+        for (String line : lines) {
+            contentWidth = Math.max(
+                    contentWidth,
+                    line.length()
+            );
+        }
+
+        int boxWidth = contentWidth + 4;
+
+        // ==========================================
+        // PRINT BOX
+        // ==========================================
+        System.out.println(
+                "+" + "-".repeat(boxWidth - 2) + "+"
+        );
+
+        String title = "POINTS EXPIRY";
+
+        int leftPadding
+                = (contentWidth - title.length()) / 2;
+
+        int rightPadding
+                = contentWidth
+                - title.length()
+                - leftPadding;
+
+        System.out.println(
+                "| "
+                + " ".repeat(leftPadding)
+                + title
+                + " ".repeat(rightPadding)
+                + " |"
+        );
+
+        System.out.println(
+                "+" + "-".repeat(boxWidth - 2) + "+"
+        );
+
+        for (String line : lines) {
+
+            System.out.printf(
+                    "| %-"
+                    + contentWidth
+                    + "s |%n",
+                    line
+            );
+        }
+
+        System.out.println(
+                "+" + "-".repeat(boxWidth - 2) + "+"
+        );
     }
 
     // Displays expiring and recently expired points.
@@ -927,187 +1467,228 @@ public class LoyaltyUI {
         ListInterface<PointsTransaction> expired
                 = loyaltyController.getRecentlyExpiredTransactions(memberId);
 
+        boolean showMember = memberId == null;
+
+        // ==================================================
+        // POINTS EXPIRY
+        // ==================================================
         System.out.println();
-        System.out.println("POINTS EXPIRING SOON");
+        System.out.println("POINTS EXPIRY");
+        printDivider();
+
+        // ==================================================
+        // EXPIRING SOON
+        // ==================================================
+        System.out.println();
+        System.out.println("EXPIRING SOON");
+        printDivider();
 
         if (expiring.isEmpty()) {
 
-            System.out.println("No points expiring soon.");
+            System.out.println(
+                    "No points are currently expiring soon."
+            );
 
         } else {
 
-            int memberWidth = "Member".length();
-            int pointsWidth = "Points".length();
-            int expiryWidth = "Expires".length();
-            int daysWidth = "Days Left".length();
-
-            for (int i = 1; i <= expiring.size(); i++) {
-
-                PointsTransaction t
-                        = expiring.getEntry(i);
-
-                memberWidth
-                        = Math.max(
-                                memberWidth,
-                                t.getMemberId().length()
-                        );
-
-                pointsWidth
-                        = Math.max(
-                                pointsWidth,
-                                formatPoints(
-                                        t.getPointsChange()
-                                ).length()
-                        );
-
-                expiryWidth
-                        = Math.max(
-                                expiryWidth,
-                                String.valueOf(
-                                        t.getExpiryDate()
-                                ).length()
-                        );
-
-                daysWidth
-                        = Math.max(
-                                daysWidth,
-                                (loyaltyController
-                                        .getDaysUntilExpiry(t)
-                                        + " days").length()
-                        );
-            }
-
-            int tableWidth
-                    = 4
-                    + memberWidth
-                    + 3
-                    + pointsWidth
-                    + 3
-                    + expiryWidth
-                    + 3
-                    + daysWidth
-                    + 3;
-
-            System.out.println("-".repeat(tableWidth));
-
-            System.out.printf(
-                    "| %-" + memberWidth
-                    + "s | %" + pointsWidth
-                    + "s | %-" + expiryWidth
-                    + "s | %-" + daysWidth
-                    + "s |%n",
-                    "Member",
-                    "Points",
-                    "Expires",
-                    "Days Left"
-            );
-
-            System.out.println("-".repeat(tableWidth));
-
-            for (int i = 1; i <= expiring.size(); i++) {
-
-                PointsTransaction t
-                        = expiring.getEntry(i);
+            if (showMember) {
 
                 System.out.printf(
-                        "| %-" + memberWidth
-                        + "s | %" + pointsWidth
-                        + "s | %-" + expiryWidth
-                        + "s | %-" + daysWidth
-                        + "s |%n",
-                        t.getMemberId(),
-                        formatPoints(t.getPointsChange()),
-                        t.getExpiryDate(),
-                        loyaltyController
-                                .getDaysUntilExpiry(t)
-                        + " days"
+                        "| %-8s | %-18s | %12s | %-12s | %10s |%n",
+                        "Member",
+                        "Status",
+                        "Points",
+                        "Expires",
+                        "Days Left"
                 );
+
+                printDivider();
+
+                for (int i = 1; i <= expiring.size(); i++) {
+
+                    PointsTransaction t
+                            = expiring.getEntry(i);
+
+                    String points
+                            = formatPoints(
+                                    Math.abs(
+                                            t.getPointsChange()
+                                    )
+                            ) + " pts";
+
+                    String expiryDate
+                            = String.valueOf(
+                                    t.getExpiryDate()
+                            );
+
+                    String daysLeft
+                            = loyaltyController
+                                    .getDaysUntilExpiry(t)
+                            + " days";
+
+                    System.out.printf(
+                            "| %-8s | %-18s | %12s | %-12s | %10s |%n",
+                            t.getMemberId(),
+                            "Expiring Soon",
+                            points,
+                            expiryDate,
+                            daysLeft
+                    );
+                }
+
+            } else {
+
+                System.out.printf(
+                        "| %-18s | %12s | %-12s | %10s |%n",
+                        "Status",
+                        "Points",
+                        "Expires",
+                        "Days Left"
+                );
+
+                printDivider();
+
+                for (int i = 1; i <= expiring.size(); i++) {
+
+                    PointsTransaction t
+                            = expiring.getEntry(i);
+
+                    String points
+                            = formatPoints(
+                                    Math.abs(
+                                            t.getPointsChange()
+                                    )
+                            ) + " pts";
+
+                    String expiryDate
+                            = String.valueOf(
+                                    t.getExpiryDate()
+                            );
+
+                    String daysLeft
+                            = loyaltyController
+                                    .getDaysUntilExpiry(t)
+                            + " days";
+
+                    System.out.printf(
+                            "| %-18s | %12s | %-12s | %10s |%n",
+                            "Expiring Soon",
+                            points,
+                            expiryDate,
+                            daysLeft
+                    );
+                }
             }
 
-            System.out.println("-".repeat(tableWidth));
+            printDivider();
         }
 
+        // ==================================================
+        // RECENTLY EXPIRED
+        // ==================================================
         System.out.println();
-        System.out.println("RECENTLY EXPIRED POINTS");
+        System.out.println("RECENTLY EXPIRED");
+        printDivider();
 
         if (expired.isEmpty()) {
 
-            System.out.println("No recently expired points.");
+            System.out.println(
+                    "No points have recently expired."
+            );
 
         } else {
 
-            int memberWidth = "Member".length();
-            int pointsWidth = "Points".length();
-            int dateWidth = "Expired".length();
-
-            for (int i = 1; i <= expired.size(); i++) {
-
-                PointsTransaction t
-                        = expired.getEntry(i);
-
-                memberWidth
-                        = Math.max(
-                                memberWidth,
-                                t.getMemberId().length()
-                        );
-
-                pointsWidth
-                        = Math.max(
-                                pointsWidth,
-                                formatPoints(
-                                        -t.getPointsChange()
-                                ).length()
-                        );
-
-                dateWidth
-                        = Math.max(
-                                dateWidth,
-                                String.valueOf(
-                                        t.getTransactionDate()
-                                ).length()
-                        );
-            }
-
-            int tableWidth
-                    = 4
-                    + memberWidth
-                    + 3
-                    + pointsWidth
-                    + 3
-                    + dateWidth
-                    + 3;
-
-            System.out.println("-".repeat(tableWidth));
-
-            System.out.printf(
-                    "| %-" + memberWidth
-                    + "s | %" + pointsWidth
-                    + "s | %-" + dateWidth
-                    + "s |%n",
-                    "Member",
-                    "Points",
-                    "Expired"
-            );
-
-            System.out.println("-".repeat(tableWidth));
-
-            for (int i = 1; i <= expired.size(); i++) {
-
-                PointsTransaction t
-                        = expired.getEntry(i);
+            if (showMember) {
 
                 System.out.printf(
-                        "| %-" + memberWidth
-                        + "s | %" + pointsWidth
-                        + "s | %-" + dateWidth
-                        + "s |%n",
-                        t.getMemberId(),
-                        formatPoints(-t.getPointsChange()),
-                        t.getTransactionDate()
+                        "| %-8s | %-18s | %12s | %-12s |%n",
+                        "Member",
+                        "Status",
+                        "Points",
+                        "Expired On"
                 );
+
+                printDivider();
+
+                for (int i = 1; i <= expired.size(); i++) {
+
+                    PointsTransaction t
+                            = expired.getEntry(i);
+
+                    String points
+                            = "-"
+                            + formatPoints(
+                                    Math.abs(
+                                            t.getPointsChange()
+                                    )
+                            )
+                            + " pts";
+
+                    String expiredDate
+                            = String.valueOf(
+                                    t.getTransactionDate()
+                            );
+
+                    System.out.printf(
+                            "| %-8s | %-18s | %12s | %-12s |%n",
+                            t.getMemberId(),
+                            "Points Expired",
+                            points,
+                            expiredDate
+                    );
+                }
+
+            } else {
+
+                System.out.printf(
+                        "| %-18s | %12s | %-12s |%n",
+                        "Status",
+                        "Points",
+                        "Expired On"
+                );
+
+                printDivider();
+
+                for (int i = 1; i <= expired.size(); i++) {
+
+                    PointsTransaction t
+                            = expired.getEntry(i);
+
+                    String points
+                            = "-"
+                            + formatPoints(
+                                    Math.abs(
+                                            t.getPointsChange()
+                                    )
+                            )
+                            + " pts";
+
+                    String expiredDate
+                            = String.valueOf(
+                                    t.getTransactionDate()
+                            );
+
+                    System.out.printf(
+                            "| %-18s | %12s | %-12s |%n",
+                            "Points Expired",
+                            points,
+                            expiredDate
+                    );
+                }
             }
 
-            System.out.println("-".repeat(tableWidth));
+            printDivider();
+        }
+
+        // ==================================================
+        // OVERALL STATUS
+        // ==================================================
+        if (expiring.isEmpty() && expired.isEmpty()) {
+
+            System.out.println();
+            System.out.println(
+                    "[OK] No points expiry records found."
+            );
         }
     }
 
@@ -1115,7 +1696,7 @@ public class LoyaltyUI {
     private void viewAndSelectMember() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("VIEW / SELECT MEMBER");
 
         ListInterface<Member> members
@@ -1193,7 +1774,7 @@ public class LoyaltyUI {
             } else {
 
                 clearScreen();
-                printBanner(BANNER_MEMBER);
+                printCenteredBanner(BANNER_MEMBER);
                 printHeader("SELECT MEMBER");
 
                 System.out.println(
@@ -1207,7 +1788,7 @@ public class LoyaltyUI {
                 printDivider();
 
                 String selectedId
-                        = readValidId(
+                        = readExistingMemberId(
                                 "Enter Member ID to select: "
                         );
 
@@ -1215,17 +1796,6 @@ public class LoyaltyUI {
                         = loyaltyController.searchMemberById(
                                 selectedId
                         );
-
-                if (found == null) {
-
-                    System.out.println();
-                    System.out.println(
-                            "[!] Member not found."
-                    );
-
-                    pressEnterToContinue();
-                    return;
-                }
             }
         }
 
@@ -1269,7 +1839,7 @@ public class LoyaltyUI {
     private void transactionHistory() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("TRANSACTION HISTORY");
 
         System.out.println();
@@ -1328,7 +1898,7 @@ public class LoyaltyUI {
     private String selectMemberForTransactionHistory() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
         printHeader("SELECT MEMBER");
 
         ListInterface<Member> members
@@ -1373,7 +1943,7 @@ public class LoyaltyUI {
             } else {
 
                 clearScreen();
-                printBanner(BANNER_MEMBER);
+                printCenteredBanner(BANNER_MEMBER);
                 printHeader("SELECT MEMBER");
 
                 System.out.println(
@@ -1387,7 +1957,7 @@ public class LoyaltyUI {
                 printDivider();
 
                 String selectedId
-                        = readValidId(
+                        = readExistingMemberId(
                                 "Enter Member ID to select: "
                         );
 
@@ -1395,15 +1965,6 @@ public class LoyaltyUI {
                         = loyaltyController.searchMemberById(
                                 selectedId
                         );
-
-                if (found == null) {
-                    System.out.println();
-                    System.out.println(
-                            "Member not found."
-                    );
-                    pressEnterToContinue();
-                    return null;
-                }
             }
         }
 
@@ -1429,7 +1990,7 @@ public class LoyaltyUI {
                 );
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
 
         int tableWidth = getTransactionTableWidth(history, false);
         printTransactionHeader("MEMBER TRANSACTION HISTORY", tableWidth);
@@ -1455,7 +2016,7 @@ public class LoyaltyUI {
                 = loyaltyController.getAllTransactions();
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
 
         int tableWidth = getTransactionTableWidth(all, true);
         printTransactionHeader("ALL TRANSACTIONS", tableWidth);
@@ -1611,7 +2172,7 @@ public class LoyaltyUI {
     private void registerLoyaltyMember() {
 
         clearScreen();
-        printBanner(BANNER_REGISTER);
+        printCenteredBanner(BANNER_REGISTER);
         printHeader("REGISTER NEW MEMBER");
         printBackHint();
 
@@ -1640,16 +2201,25 @@ public class LoyaltyUI {
         System.out.println("[OK] MEMBER REGISTERED SUCCESSFULLY");
         System.out.println();
 
-        System.out.println(
-                registered.getMemberId()
-                + " | "
-                + registered.getName()
-                + " | "
-                + registered.getTier()
-                + " | "
-                + formatPoints(registered.getPoints())
-                + " pts"
+        System.out.printf(
+                "%-12s %-25s %-15s %-12s%n",
+                "Member ID",
+                "Name",
+                "Tier",
+                "Points"
         );
+
+        printDivider();
+
+        System.out.printf(
+                "%-12s %-25s %-15s %-12s%n",
+                registered.getMemberId(),
+                registered.getName(),
+                registered.getTier(),
+                formatPoints(registered.getPoints()) + " pts"
+        );
+
+        printDivider();
 
         System.out.println();
 
@@ -1676,7 +2246,7 @@ public class LoyaltyUI {
     private void viewAllMembers() {
 
         clearScreen();
-        printBanner(BANNER_MEMBER);
+        printCenteredBanner(BANNER_MEMBER);
 
         ListInterface<Member> members = loyaltyController.viewAllMembers();
 
@@ -1720,7 +2290,7 @@ public class LoyaltyUI {
         while (running) {
 
             clearScreen();
-            printBanner(BANNER_REWARDS);
+            printCenteredBanner(BANNER_REWARDS);
             printHeader("REWARDS");
 
             printCurrentMemberBanner();
@@ -1779,7 +2349,7 @@ public class LoyaltyUI {
         }
     }
 
-    // Displays rewards in a table.
+    // Displays rewards in a dynamically sized table.
     private void printRewardTable(ListInterface<Reward> rewards) {
 
         if (rewards.isEmpty()) {
@@ -1787,17 +2357,92 @@ public class LoyaltyUI {
             return;
         }
 
-        System.out.printf(
-                "%-8s %-25s %-15s %-15s %-8s %-10s%n",
-                "ID",
-                "Reward",
-                "Category",
-                "Points Required",
-                "Qty",
-                "Status"
+        int idWidth = "ID".length();
+        int rewardWidth = "Reward".length();
+        int categoryWidth = "Category".length();
+        int pointsWidth = "Points Required".length();
+        int qtyWidth = "Qty".length();
+        int statusWidth = "Status".length();
+
+        for (int i = 1; i <= rewards.size(); i++) {
+
+            Reward r = rewards.getEntry(i);
+
+            String rewardName = safeText(r.getRewardName());
+
+            String status;
+
+            if (r.getQuantity() == 0) {
+                status = "OUT";
+            } else if (r.getQuantity()
+                    <= loyaltyController.getLowStockThreshold()) {
+                status = "LOW";
+            } else {
+                status = "OK";
+            }
+
+            idWidth = Math.max(
+                    idWidth,
+                    textLength(r.getRewardId())
+            );
+
+            rewardWidth = Math.max(
+                    rewardWidth,
+                    rewardName.length()
+            );
+
+            categoryWidth = Math.max(
+                    categoryWidth,
+                    textLength(r.getCategory())
+            );
+
+            pointsWidth = Math.max(
+                    pointsWidth,
+                    formatPoints(r.getPointsRequired()).length()
+            );
+
+            qtyWidth = Math.max(
+                    qtyWidth,
+                    String.valueOf(r.getQuantity()).length()
+            );
+
+            statusWidth = Math.max(
+                    statusWidth,
+                    status.length()
+            );
+        }
+
+        int tableWidth = idWidth
+                + rewardWidth
+                + categoryWidth
+                + pointsWidth
+                + qtyWidth
+                + statusWidth
+                + (6 * 3)
+                + 2;
+
+        System.out.println("-".repeat(tableWidth));
+
+        printDynamicRow(
+                new String[]{
+                    "ID",
+                    "Reward",
+                    "Category",
+                    "Points Required",
+                    "Qty",
+                    "Status"
+                },
+                new int[]{
+                    idWidth,
+                    rewardWidth,
+                    categoryWidth,
+                    pointsWidth,
+                    qtyWidth,
+                    statusWidth
+                }
         );
 
-        printDivider();
+        System.out.println("-".repeat(tableWidth));
 
         for (int i = 1; i <= rewards.size(); i++) {
 
@@ -1806,36 +2451,35 @@ public class LoyaltyUI {
             String status;
 
             if (r.getQuantity() == 0) {
-
                 status = "OUT";
-
             } else if (r.getQuantity()
                     <= loyaltyController.getLowStockThreshold()) {
-
                 status = "LOW";
-
             } else {
-
                 status = "OK";
             }
 
-            String rewardName = r.getRewardName();
-
-            if (rewardName.length() > 25) {
-                rewardName
-                        = rewardName.substring(0, 22) + "...";
-            }
-
-            System.out.printf(
-                    "%-8s %-25s %-15s %-15d %-8d %-10s%n",
-                    r.getRewardId(),
-                    rewardName,
-                    r.getCategory(),
-                    r.getPointsRequired(),
-                    r.getQuantity(),
-                    status
+            printDynamicRow(
+                    new String[]{
+                        r.getRewardId(),
+                        r.getRewardName(),
+                        r.getCategory(),
+                        formatPoints(r.getPointsRequired()),
+                        String.valueOf(r.getQuantity()),
+                        status
+                    },
+                    new int[]{
+                        idWidth,
+                        rewardWidth,
+                        categoryWidth,
+                        pointsWidth,
+                        qtyWidth,
+                        statusWidth
+                    }
             );
         }
+
+        System.out.println("-".repeat(tableWidth));
     }
 
     // Browses, searches, and sorts rewards.
@@ -1849,7 +2493,7 @@ public class LoyaltyUI {
         while (browsing) {
 
             clearScreen();
-            printBanner(BANNER_REWARDS);
+            printCenteredBanner(BANNER_REWARDS);
             printHeader("BROWSE REWARDS");
 
             printCurrentMemberBanner();
@@ -1945,6 +2589,7 @@ public class LoyaltyUI {
     private void redeemReward() {
 
         clearScreen();
+        printCenteredBanner(BANNER_REWARDS);
         printHeader("REDEEM REWARD");
 
         printCurrentMemberBanner();
@@ -2027,32 +2672,93 @@ public class LoyaltyUI {
         pressEnterToContinue();
     }
 
-    // Displays the redemption receipt.
-    private void printRedemptionReceipt(String redemptionId, Member memberBeforeRedemption,
-            Member updatedMember, Reward updatedReward) {
-        int remainingPoints = (updatedMember != null) ? updatedMember.getPoints() : 0;
-        int remainingStock = (updatedReward != null) ? updatedReward.getQuantity() : 0;
+    // Displays the redemption receipt in a dynamically sized box.
+    private void printRedemptionReceipt(
+            String redemptionId,
+            Member memberBeforeRedemption,
+            Member updatedMember,
+            Reward updatedReward) {
+
+        int remainingPoints
+                = updatedMember != null
+                        ? updatedMember.getPoints()
+                        : 0;
+
+        int remainingStock
+                = updatedReward != null
+                        ? updatedReward.getQuantity()
+                        : 0;
+
+        String rewardName
+                = updatedReward != null
+                        ? safeText(updatedReward.getRewardName())
+                        : "-";
+
+        int pointsUsed
+                = updatedReward != null
+                        ? updatedReward.getPointsRequired()
+                        : 0;
+
+        String title = "REDEMPTION SUCCESSFUL";
+
+        String[] lines = {
+            "Receipt No       : " + redemptionId,
+            "Member           : " + memberBeforeRedemption.getName(),
+            "Reward           : " + rewardName,
+            "Points Used      : " + formatPoints(pointsUsed),
+            "Remaining Points : " + formatPoints(remainingPoints),
+            "Remaining Stock  : " + remainingStock
+        };
+
+        int contentWidth = title.length();
+
+        for (String line : lines) {
+            contentWidth = Math.max(
+                    contentWidth,
+                    line.length()
+            );
+        }
+
+        int boxWidth = contentWidth + 4;
 
         System.out.println();
-        System.out.println("==============================");
-        System.out.println("     REDEMPTION SUCCESSFUL     ");
-        System.out.println("==============================");
-        System.out.println("Receipt No       : " + redemptionId);
-        System.out.println("Member           : " + memberBeforeRedemption.getName());
-        System.out.println("Reward           : " + (updatedReward != null ? updatedReward.getRewardName() : "-"));
-        System.out.println("Points Used      : " + formatPoints(updatedReward != null
-                ? (memberBeforeRedemption.getPoints() - remainingPoints) : 0));
-        System.out.println("Remaining Points : " + formatPoints(remainingPoints));
-        System.out.println("Remaining Stock  : " + remainingStock);
-        System.out.println();
-        System.out.println("         Thank You!");
-        System.out.println("==============================");
+
+        System.out.println("-".repeat(boxWidth));
+
+        int padding
+                = Math.max(
+                        0,
+                        (contentWidth - title.length()) / 2
+                );
+
+        System.out.printf(
+                "| %-" + contentWidth + "s |%n",
+                " ".repeat(padding) + title
+        );
+
+        System.out.println("-".repeat(boxWidth));
+
+        for (String line : lines) {
+
+            System.out.printf(
+                    "| %-" + contentWidth + "s |%n",
+                    line
+            );
+        }
+
+        System.out.printf(
+                "| %-" + contentWidth + "s |%n",
+                "Thank You!"
+        );
+
+        System.out.println("-".repeat(boxWidth));
     }
 
     // Undoes the latest reward redemption.
     private void undoLastRedemption() {
 
         clearScreen();
+        printCenteredBanner(BANNER_REWARDS);
         printHeader("UNDO MOST RECENT REDEMPTION");
 
         RewardRedemption last = loyaltyController.getLastRedemption();
@@ -2113,15 +2819,49 @@ public class LoyaltyUI {
             Reward rewardAfter = loyaltyController.findRewardById(last.getRewardId());
 
             System.out.println();
-            System.out.println("Redemption ID   : " + last.getRedemptionId());
-            System.out.println("Refunded Points : " + formatPoints(last.getRedeemedPoints()));
 
-            if (memberAfter != null) {
-                System.out.println("New Balance     : " + formatPoints(memberAfter.getPoints()));
+            String redemptionId = last.getRedemptionId();
+            String refundedPoints = formatPoints(last.getRedeemedPoints());
+            String newBalance = memberAfter != null
+                    ? formatPoints(memberAfter.getPoints())
+                    : "-";
+            String stockRestored = rewardAfter != null
+                    ? String.valueOf(rewardAfter.getQuantity())
+                    : "-";
+
+            String[] undoDetails = {
+                "Redemption ID   : " + redemptionId,
+                "Member          : "
+                + (lastMember != null
+                ? lastMember.getMemberId()
+                + " - "
+                + lastMember.getName()
+                : last.getMemberId()),
+                "Reward          : "
+                + (rewardAfter != null
+                ? rewardAfter.getRewardName()
+                : last.getRewardId()),
+                "Refunded Points : " + refundedPoints,
+                "New Balance     : " + newBalance,
+                "Stock Restored  : " + stockRestored
+            };
+
+            int contentWidth = 0;
+
+            for (String line : undoDetails) {
+                contentWidth = Math.max(contentWidth, line.length());
             }
-            if (rewardAfter != null) {
-                System.out.println("Stock Restored  : " + rewardAfter.getQuantity());
+
+            int boxWidth = contentWidth + 4;
+
+            System.out.println("-".repeat(boxWidth));
+            System.out.printf("| %-" + contentWidth + "s |%n", "REDEMPTION UNDONE SUCCESSFULLY");
+
+            for (String line : undoDetails) {
+                System.out.printf("| %-" + contentWidth + "s |%n", line);
             }
+
+            System.out.println("-".repeat(boxWidth));
 
             if (memberAfter != null && tierBefore != null) {
                 printTierChangeNotice(memberAfter, tierBefore, memberAfter.getTier());
@@ -2137,7 +2877,7 @@ public class LoyaltyUI {
     private void viewRedemptionHistory() {
 
         clearScreen();
-        printBanner(BANNER_REWARDS);
+        printCenteredBanner(BANNER_REWARDS);
         printHeader("REDEMPTION HISTORY");
         printCurrentMemberBanner();
         printBackHint();
@@ -2179,14 +2919,10 @@ public class LoyaltyUI {
 
             case 2:
 
-                memberId = readValidId("Enter Member ID: ");
-
-                if (loyaltyController.searchMemberById(memberId) == null) {
-                    System.out.println();
-                    System.out.println("Member not found: " + memberId);
-                    pressEnterToContinue();
-                    return;
-                }
+                memberId
+                        = readExistingMemberId(
+                                "Enter Member ID: "
+                        );
 
                 break;
 
@@ -2214,7 +2950,7 @@ public class LoyaltyUI {
                 : loyaltyController.viewRedemptionHistoryByMember(memberId);
 
         clearScreen();
-        printBanner(BANNER_REWARDS);
+        printCenteredBanner(BANNER_REWARDS);
 
         boolean showMember = memberId.equalsIgnoreCase("all");
 
@@ -2258,12 +2994,17 @@ public class LoyaltyUI {
 
         pressEnterToContinue();
     }
-// Calculates the reward column width.
 
-    private int getRedemptionRewardWidth(
-            ListInterface<RewardRedemption> history) {
+// Calculates the redemption table width dynamically.
+    private int getRedemptionTableWidth(
+            ListInterface<RewardRedemption> history,
+            boolean showMember) {
 
-        int width = "Reward".length();
+        int redemptionWidth = "Redemp ID".length();
+        int memberWidth = "Member".length();
+        int rewardWidth = "Reward".length();
+        int pointsWidth = "Points".length();
+        int dateWidth = "Date".length();
 
         for (int i = 1; i <= history.size(); i++) {
 
@@ -2276,48 +3017,57 @@ public class LoyaltyUI {
 
             String rewardName
                     = reward != null
-                            ? reward.getRewardName()
-                            : r.getRewardId();
+                            ? safeText(reward.getRewardName())
+                            : safeText(r.getRewardId());
 
-            rewardName
-                    = rewardName
-                            .replace("\r", " ")
-                            .replace("\n", " ")
-                            .trim();
+            redemptionWidth = Math.max(
+                    redemptionWidth,
+                    textLength(r.getRedemptionId())
+            );
 
-            width = Math.max(width, rewardName.length());
+            memberWidth = Math.max(
+                    memberWidth,
+                    textLength(r.getMemberId())
+            );
+
+            rewardWidth = Math.max(
+                    rewardWidth,
+                    rewardName.length()
+            );
+
+            pointsWidth = Math.max(
+                    pointsWidth,
+                    formatPoints(r.getRedeemedPoints()).length()
+            );
+
+            dateWidth = Math.max(
+                    dateWidth,
+                    textLength(String.valueOf(r.getRedeemDate()))
+            );
         }
-
-        return width;
-    }
-// Calculates the redemption table width.
-
-    private int getRedemptionTableWidth(
-            ListInterface<RewardRedemption> history,
-            boolean showMember) {
-
-        int rewardWidth
-                = getRedemptionRewardWidth(history);
-
-        int width
-                = 4
-                + 10
-                + 3
-                + rewardWidth
-                + 3
-                + 8
-                + 3
-                + 10
-                + 3;
 
         if (showMember) {
-            width += 6 + 3;
+
+            return redemptionWidth
+                    + memberWidth
+                    + rewardWidth
+                    + pointsWidth
+                    + dateWidth
+                    + (5 * 3)
+                    + 2;
+
+        } else {
+
+            return redemptionWidth
+                    + rewardWidth
+                    + pointsWidth
+                    + dateWidth
+                    + (4 * 3)
+                    + 2;
         }
-
-        return width;
     }
-// Displays the redemption table header.
 
+// Displays the redemption table header.
     private void printRedemptionHeader(
             String title,
             int tableWidth) {
@@ -2337,63 +3087,26 @@ public class LoyaltyUI {
 
         System.out.println("-".repeat(tableWidth));
     }
-// Displays redemption records in a table.
+// Displays redemption records in a dynamically sized table.
 
     private void printRedemptionTable(
             ListInterface<RewardRedemption> history,
             boolean showMember) {
 
-        final int redemptionWidth = 10;
-        final int memberWidth = 6;
-        final int dateWidth = 10;
-        final int pointsWidth = 8;
-
-        final int rewardWidth
-                = getRedemptionRewardWidth(history);
-
-        final int tableWidth
-                = getRedemptionTableWidth(
-                        history,
-                        showMember
-                );
-
-        System.out.println("-".repeat(tableWidth));
-
-        if (showMember) {
-
-            System.out.printf(
-                    "| %-" + redemptionWidth + "s | %-"
-                    + memberWidth + "s | %-"
-                    + rewardWidth + "s | %"
-                    + pointsWidth + "s | %-"
-                    + dateWidth + "s |%n",
-                    "Redemp ID",
-                    "Member",
-                    "Reward",
-                    "Points",
-                    "Date"
-            );
-
-        } else {
-
-            System.out.printf(
-                    "| %-" + redemptionWidth + "s | %-"
-                    + rewardWidth + "s | %"
-                    + pointsWidth + "s | %-"
-                    + dateWidth + "s |%n",
-                    "Redemp ID",
-                    "Reward",
-                    "Points",
-                    "Date"
-            );
+        if (history.isEmpty()) {
+            System.out.println("No redemption records found.");
+            return;
         }
 
-        System.out.println("-".repeat(tableWidth));
+        int redemptionWidth = "Redemp ID".length();
+        int memberWidth = "Member".length();
+        int rewardWidth = "Reward".length();
+        int pointsWidth = "Points".length();
+        int dateWidth = "Date".length();
 
         for (int i = 1; i <= history.size(); i++) {
 
-            RewardRedemption r
-                    = history.getEntry(i);
+            RewardRedemption r = history.getEntry(i);
 
             Reward reward
                     = loyaltyController.findRewardById(
@@ -2402,43 +3115,148 @@ public class LoyaltyUI {
 
             String rewardName
                     = reward != null
-                            ? reward.getRewardName()
-                            : r.getRewardId();
+                            ? safeText(reward.getRewardName())
+                            : safeText(r.getRewardId());
 
-            rewardName
-                    = rewardName
-                            .replace("\r", " ")
-                            .replace("\n", " ")
-                            .trim();
+            redemptionWidth = Math.max(
+                    redemptionWidth,
+                    textLength(r.getRedemptionId())
+            );
+
+            memberWidth = Math.max(
+                    memberWidth,
+                    textLength(r.getMemberId())
+            );
+
+            rewardWidth = Math.max(
+                    rewardWidth,
+                    rewardName.length()
+            );
+
+            pointsWidth = Math.max(
+                    pointsWidth,
+                    formatPoints(r.getRedeemedPoints()).length()
+            );
+
+            dateWidth = Math.max(
+                    dateWidth,
+                    textLength(String.valueOf(r.getRedeemDate()))
+            );
+        }
+
+        int tableWidth;
+
+        if (showMember) {
+
+            tableWidth
+                    = redemptionWidth
+                    + memberWidth
+                    + rewardWidth
+                    + pointsWidth
+                    + dateWidth
+                    + (5 * 3)
+                    + 2;
+
+        } else {
+
+            tableWidth
+                    = redemptionWidth
+                    + rewardWidth
+                    + pointsWidth
+                    + dateWidth
+                    + (4 * 3)
+                    + 2;
+        }
+
+        System.out.println("-".repeat(tableWidth));
+
+        if (showMember) {
+
+            printDynamicRow(
+                    new String[]{
+                        "Redemp ID",
+                        "Member",
+                        "Reward",
+                        "Points",
+                        "Date"
+                    },
+                    new int[]{
+                        redemptionWidth,
+                        memberWidth,
+                        rewardWidth,
+                        pointsWidth,
+                        dateWidth
+                    }
+            );
+
+        } else {
+
+            printDynamicRow(
+                    new String[]{
+                        "Redemp ID",
+                        "Reward",
+                        "Points",
+                        "Date"
+                    },
+                    new int[]{
+                        redemptionWidth,
+                        rewardWidth,
+                        pointsWidth,
+                        dateWidth
+                    }
+            );
+        }
+
+        System.out.println("-".repeat(tableWidth));
+
+        for (int i = 1; i <= history.size(); i++) {
+
+            RewardRedemption r = history.getEntry(i);
+
+            Reward reward
+                    = loyaltyController.findRewardById(
+                            r.getRewardId()
+                    );
+
+            String rewardName
+                    = reward != null
+                            ? safeText(reward.getRewardName())
+                            : safeText(r.getRewardId());
 
             if (showMember) {
 
-                System.out.printf(
-                        "| %-" + redemptionWidth
-                        + "s | %-" + memberWidth
-                        + "s | %-" + rewardWidth
-                        + "s | %" + pointsWidth
-                        + "d | %-" + dateWidth
-                        + "s |%n",
-                        r.getRedemptionId(),
-                        r.getMemberId(),
-                        rewardName,
-                        r.getRedeemedPoints(),
-                        r.getRedeemDate()
+                printDynamicRow(
+                        new String[]{
+                            r.getRedemptionId(),
+                            r.getMemberId(),
+                            rewardName,
+                            formatPoints(r.getRedeemedPoints()),
+                            String.valueOf(r.getRedeemDate())
+                        },
+                        new int[]{
+                            redemptionWidth,
+                            memberWidth,
+                            rewardWidth,
+                            pointsWidth,
+                            dateWidth
+                        }
                 );
 
             } else {
 
-                System.out.printf(
-                        "| %-" + redemptionWidth
-                        + "s | %-" + rewardWidth
-                        + "s | %" + pointsWidth
-                        + "d | %-" + dateWidth
-                        + "s |%n",
-                        r.getRedemptionId(),
-                        rewardName,
-                        r.getRedeemedPoints(),
-                        r.getRedeemDate()
+                printDynamicRow(
+                        new String[]{
+                            r.getRedemptionId(),
+                            rewardName,
+                            formatPoints(r.getRedeemedPoints()),
+                            String.valueOf(r.getRedeemDate())
+                        },
+                        new int[]{
+                            redemptionWidth,
+                            rewardWidth,
+                            pointsWidth,
+                            dateWidth
+                        }
                 );
             }
         }
@@ -2450,6 +3268,7 @@ public class LoyaltyUI {
     private void addReward() {
 
         clearScreen();
+        printCenteredBanner(BANNER_REWARDS);
         printHeader("ADD REWARD");
         printBackHint();
 
@@ -2500,14 +3319,30 @@ public class LoyaltyUI {
         System.out.println("ADDED REWARD");
         printDivider();
 
-        System.out.printf(
-                "%s | %s | %s | %d pts | Qty %d%n",
-                added.getRewardId(),
-                added.getRewardName(),
-                added.getCategory(),
-                added.getPointsRequired(),
-                added.getQuantity()
-        );
+        String[] addedRewardDetails = {
+            added.getRewardId(),
+            added.getRewardName(),
+            added.getCategory(),
+            formatPoints(added.getPointsRequired()) + " pts",
+            "Qty " + added.getQuantity()
+        };
+
+        int addedWidth = 0;
+
+        for (String line : addedRewardDetails) {
+            addedWidth = Math.max(addedWidth, line.length());
+        }
+
+        System.out.println("-".repeat(addedWidth + 4));
+
+        for (String line : addedRewardDetails) {
+            System.out.printf(
+                    "| %-" + addedWidth + "s |%n",
+                    line
+            );
+        }
+
+        System.out.println("-".repeat(addedWidth + 4));
 
         printDivider();
 
@@ -2528,6 +3363,7 @@ public class LoyaltyUI {
     private void restockReward() {
 
         clearScreen();
+        printCenteredBanner(BANNER_REWARDS);
         printHeader("RESTOCK REWARD");
         printBackHint();
 
@@ -2579,10 +3415,17 @@ public class LoyaltyUI {
         }
 
         System.out.println();
+        String rewardDisplay = safeText(reward.getRewardName());
+
+        int rewardInfoWidth = Math.max(
+                20,
+                rewardDisplay.length()
+        );
+
         System.out.printf(
-                "%-20s %s%n",
+                "%-20s %-" + rewardInfoWidth + "s%n",
                 "Reward",
-                reward.getRewardName()
+                rewardDisplay
         );
 
         System.out.printf(
@@ -2655,7 +3498,7 @@ public class LoyaltyUI {
         while (running) {
 
             clearScreen();
-            printBanner(BANNER_TIERS);
+            printCenteredBanner(BANNER_TIERS);
             printHeader("LOYALTY & TIERS");
 
             processExpiredPointsAndNotify();
@@ -2761,7 +3604,7 @@ public class LoyaltyUI {
     private void viewMyTierProgress() {
 
         clearScreen();
-        printBanner(BANNER_TIERS);
+        printCenteredBanner(BANNER_TIERS);
         printHeader("TIER PROGRESS");
         printCurrentMemberBanner();
         printBackHint();
@@ -2772,10 +3615,14 @@ public class LoyaltyUI {
 
             System.out.println();
             System.out.println("No current member selected.");
-            System.out.println("Please enter a Member ID to view tier progress.");
+            System.out.println(
+                    "Please enter a Member ID to view tier progress."
+            );
             System.out.println();
 
-            id = readValidId("Member ID: ");
+            id = readExistingMemberId(
+                    "Member ID: "
+            );
 
         } else {
 
@@ -2787,41 +3634,299 @@ public class LoyaltyUI {
         Member member
                 = loyaltyController.searchMemberById(id);
 
-        if (member == null) {
-            System.out.println();
-            System.out.println("Member not found.");
-            pressEnterToContinue();
-            return;
-        }
-
         if (currentMember != null
-                && currentMember.getMemberId().equals(member.getMemberId())) {
+                && currentMember.getMemberId()
+                        .equals(member.getMemberId())) {
+
             setCurrentMember(member);
         }
 
-        System.out.println();
-        System.out.println("MEMBER");
-        printDivider();
-        System.out.println(memberSummaryLine(member));
-
-        System.out.println();
-        System.out.println("TIER PROGRESS");
-        printDivider();
-        System.out.println(
-                loyaltyController.getTierProgressDisplay(
-                        member.getTier(), member.getPoints())
+        // =========================
+        // MEMBER BOX
+        // =========================
+        printBox(
+                "MEMBER",
+                new String[]{
+                    "Member ID   : " + member.getMemberId(),
+                    "Name        : " + member.getName(),
+                    "Tier        : " + member.getTier(),
+                    "Points      : "
+                    + formatPoints(member.getPoints())
+                    + " pts"
+                }
         );
-        printDivider();
 
+        System.out.println();
+
+        // =========================
+        // TIER PROGRESS
+        // =========================
+        String progressDisplay
+                = loyaltyController.getTierProgressDisplay(
+                        member.getTier(),
+                        member.getPoints()
+                );
+
+        String[] progressLines
+                = progressDisplay.split("\\R");
+
+        String progressTo
+                = progressLines.length > 0
+                        ? progressLines[0]
+                        : "-";
+
+        String currentTier
+                = progressLines.length > 1
+                        ? progressLines[1]
+                        : member.getTier();
+
+        String progressText
+                = progressLines.length > 2
+                        ? progressLines[2]
+                        : "";
+
+        String pointsNeeded
+                = progressLines.length > 3
+                        ? progressLines[3]
+                        : "";
+
+        // Separate progress percentage from progress bar.
+        String progressBar = progressText;
+        String percentage = "";
+
+        int percentIndex
+                = progressText.lastIndexOf("%");
+
+        if (percentIndex >= 0) {
+
+            int percentStart
+                    = progressText.lastIndexOf(" ");
+
+            if (percentStart >= 0
+                    && percentStart < percentIndex) {
+
+                percentage
+                        = progressText.substring(
+                                percentStart + 1
+                        ).trim();
+
+                progressBar
+                        = progressText.substring(
+                                0,
+                                percentStart
+                        ).trim();
+            }
+        }
+
+        String nextTier
+                = progressTo
+                        .replace("Progress to ", "")
+                        .trim();
+
+        String needed
+                = pointsNeeded
+                        .replace("Need ", "")
+                        .trim();
+
+        // =========================
+// TIER PROGRESS
+// =========================
+        if (progressTo.toLowerCase().contains("highest tier")
+                || currentTier.equalsIgnoreCase("Platinum")) {
+
+            printBox(
+                    "TIER PROGRESS",
+                    new String[]{
+                        "Current Tier : " + currentTier,
+                        "Next Tier    : Highest tier reached",
+                        "Progress     : Completed",
+                        "Points Needed: No further points needed"
+                    }
+            );
+
+        } else {
+
+            printBox(
+                    "TIER PROGRESS",
+                    new String[]{
+                        "Current Tier : " + currentTier,
+                        "Next Tier    : " + nextTier,
+                        "Progress     : ["
+                        + progressBar
+                        + "] "
+                        + percentage,
+                        "Points Needed: " + needed
+                    }
+            );
+        }
+
+        // Keep the screen visible before returning.
         pressEnterToContinue();
+    }
+
+// Displays information inside a fixed-width box.
+    private void printBox(String title, String[] lines) {
+
+        int contentWidth = WIDTH - 4;
+
+        System.out.println(
+                "+" + "-".repeat(contentWidth + 2) + "+"
+        );
+
+        System.out.printf(
+                "| %-"
+                + contentWidth
+                + "s |%n",
+                title
+        );
+
+        System.out.println(
+                "+" + "-".repeat(contentWidth + 2) + "+"
+        );
+
+        for (String line : lines) {
+
+            String safeLine
+                    = line == null ? "" : line;
+
+            // Prevent text from escaping the box.
+            if (safeLine.length() > contentWidth) {
+                safeLine
+                        = safeLine.substring(
+                                0,
+                                contentWidth
+                        );
+            }
+
+            System.out.printf(
+                    "| %-"
+                    + contentWidth
+                    + "s |%n",
+                    safeLine
+            );
+        }
+
+        System.out.println(
+                "+" + "-".repeat(contentWidth + 2) + "+"
+        );
+    }
+
+    // Displays a report inside a clean fixed-width box.
+    private void printReportBox(
+            String title,
+            java.util.ArrayList<String> lines) {
+
+        int contentWidth = WIDTH - 4;
+
+        // Find the longest line.
+        int longestLine = title.length();
+
+        for (String line : lines) {
+
+            if (line != null) {
+                longestLine = Math.max(
+                        longestLine,
+                        line.length()
+                );
+            }
+        }
+
+        // Use the normal screen width.
+        // Do not allow content to exceed the box.
+        longestLine = Math.min(
+                longestLine,
+                contentWidth
+        );
+
+        System.out.println();
+
+        // Top border
+        System.out.println(
+                "+"
+                + "-".repeat(contentWidth + 2)
+                + "+"
+        );
+
+        // Centered title
+        int titlePadding
+                = Math.max(
+                        0,
+                        (contentWidth - title.length()) / 2
+                );
+
+        int titleRightPadding
+                = Math.max(
+                        0,
+                        contentWidth
+                        - titlePadding
+                        - title.length()
+                );
+
+        System.out.println(
+                "| "
+                + " ".repeat(titlePadding)
+                + title
+                + " ".repeat(titleRightPadding)
+                + " |"
+        );
+
+        // Header border
+        System.out.println(
+                "+"
+                + "-".repeat(contentWidth + 2)
+                + "+"
+        );
+
+        // Content
+        for (String line : lines) {
+
+            String safeLine
+                    = line == null
+                            ? ""
+                            : line;
+
+            // Pad only if shorter.
+            if (safeLine.length() < contentWidth) {
+
+                safeLine
+                        = String.format(
+                                "%-" + contentWidth + "s",
+                                safeLine
+                        );
+
+            } else if (safeLine.length() > contentWidth) {
+
+                // Prevent the right border from being pushed out.
+                safeLine
+                        = safeLine.substring(
+                                0,
+                                contentWidth
+                        );
+            }
+
+            System.out.println(
+                    "| "
+                    + safeLine
+                    + " |"
+            );
+        }
+
+        // Bottom border
+        System.out.println(
+                "+"
+                + "-".repeat(contentWidth + 2)
+                + "+"
+        );
     }
 
     // Displays the notification centre.
     private void notificationCentre() {
 
         clearScreen();
+        printCenteredBanner(BANNER_NOTIFICATIONS);
         printHeader("NOTIFICATIONS");
 
+        // Process expired points before displaying notifications.
         loyaltyController.processExpiredPoints();
 
         ListInterface<PointsTransaction> expiring
@@ -2833,51 +3938,79 @@ public class LoyaltyUI {
         ListInterface<Reward> lowStock
                 = loyaltyController.getLowStockRewards();
 
+        // ==================================================
+        // NOTIFICATION SUMMARY
+        // ==================================================
         System.out.println();
-        System.out.println("NOTIFICATION SUMMARY");
-        printDivider();
 
-        if (expiring.isEmpty()
-                && expired.isEmpty()
-                && lowStock.isEmpty()) {
+        int notificationCount
+                = expiring.size()
+                + expired.size()
+                + lowStock.size();
 
-            System.out.println("[OK] No active notifications.");
-            System.out.println("Everything looks good.");
+        if (notificationCount == 0) {
 
-            printDivider();
+            printBox(
+                    "NOTIFICATION SUMMARY",
+                    new String[]{
+                        "[OK] No active notifications.",
+                        "Everything looks good."
+                    }
+            );
+
             pressEnterToContinue();
             return;
         }
 
+        // Build a clean summary.
+        java.util.ArrayList<String> summary
+                = new java.util.ArrayList<>();
+
         if (!expiring.isEmpty()) {
-            System.out.println(
-                    "[!] " + expiring.size()
+            summary.add(
+                    "[!] "
+                    + expiring.size()
                     + " point record(s) expiring soon."
             );
         }
 
         if (!expired.isEmpty()) {
-            System.out.println(
-                    "[!] " + expired.size()
+            summary.add(
+                    "[!] "
+                    + expired.size()
                     + " recently expired point record(s)."
             );
         }
 
         if (!lowStock.isEmpty()) {
-            System.out.println(
-                    "[!] " + lowStock.size()
+            summary.add(
+                    "[!] "
+                    + lowStock.size()
                     + " reward(s) low in stock."
             );
         }
 
-        printDivider();
+        printBox(
+                "NOTIFICATION SUMMARY",
+                summary.toArray(new String[0])
+        );
 
+        // ==================================================
+        // POINTS EXPIRY
+        // ==================================================
         if (!expiring.isEmpty() || !expired.isEmpty()) {
-            System.out.println();
-            System.out.println("POINTS EXPIRY");
+
+            /*
+         * printExpiryAlerts() already prints its own
+         * POINTS EXPIRY header, so do not print another
+         * POINTS EXPIRY header here.
+             */
             printExpiryAlerts(null);
         }
 
+        // ==================================================
+        // LOW STOCK REWARDS
+        // ==================================================
         if (!lowStock.isEmpty()) {
 
             System.out.println();
@@ -2885,7 +4018,7 @@ public class LoyaltyUI {
             printDivider();
 
             System.out.printf(
-                    "%-35s %-12s%n",
+                    "%-35s | %10s |%n",
                     "Reward",
                     "Remaining"
             );
@@ -2898,14 +4031,15 @@ public class LoyaltyUI {
                         = lowStock.getEntry(i);
 
                 System.out.printf(
-                        "%-35s %-12d%n",
-                        reward.getRewardName(),
+                        "%-35s | %10d |%n",
+                        safeText(reward.getRewardName()),
                         reward.getQuantity()
                 );
             }
 
             printDivider();
 
+            System.out.println();
             System.out.println(
                     "Tip: Use Rewards > Restock Reward to add stock."
             );
@@ -2918,35 +4052,91 @@ public class LoyaltyUI {
     private void simulateTierUpgrade() {
 
         clearScreen();
-        printBanner(BANNER_TIERS);
+        printCenteredBanner(BANNER_TIERS);
         printHeader("SIMULATE TIER PROGRESS");
         printCurrentMemberBanner();
         printBackHint();
 
-        String id = resolveMemberId("Member ID                : ");
-        Member member = loyaltyController.searchMemberById(id);
+        String id = resolveMemberId(
+                "Member ID                : "
+        );
+
+        Member member
+                = loyaltyController.searchMemberById(id);
+
         if (member == null) {
-            System.out.println("\nMember not found.");
+            System.out.println();
+            System.out.println("Member not found.");
             pressEnterToContinue();
             return;
         }
 
+        // =========================
+        // CURRENT MEMBER
+        // =========================
+        printBox(
+                "CURRENT MEMBER",
+                new String[]{
+                    "Member ID : " + member.getMemberId(),
+                    "Name      : " + member.getName(),
+                    "Tier      : " + member.getTier(),
+                    "Points    : "
+                    + formatPoints(member.getPoints())
+                    + " pts"
+                }
+        );
+
         System.out.println();
-        System.out.println("Current Tier   : " + member.getTier());
-        System.out.println("Current Points : " + formatPoints(member.getPoints()));
 
-        int hypothetical = readNonNegativeInt("\nSimulate earning how many points (0 to skip): ");
+        // =========================
+        // SIMULATION INPUT
+        // =========================
+        int hypothetical
+                = readNonNegativeInt(
+                        "Simulate earning how many points: "
+                );
 
-        if (hypothetical > 0) {
-            int simulatedPoints = member.getPoints() + hypothetical;
-            String simulatedTier = loyaltyController.calculateTier(simulatedPoints);
+        int simulatedPoints
+                = member.getPoints() + hypothetical;
 
-            System.out.println();
-            System.out.println("If you earn " + hypothetical + " more points:");
-            System.out.println("  New Points : " + formatPoints(simulatedPoints));
-            System.out.println("  New Tier   : " + simulatedTier
-                    + (simulatedTier.equals(member.getTier()) ? " (no change)" : " (upgrade!)"));
+        String simulatedTier
+                = loyaltyController.calculateTier(
+                        simulatedPoints
+                );
+
+        String status;
+
+        if (simulatedTier.equalsIgnoreCase("Platinum")) {
+
+            status = "Highest tier reached";
+
+        } else if (!simulatedTier.equalsIgnoreCase(member.getTier())) {
+
+            status = "Tier upgrade achieved";
+
+        } else {
+
+            status = "No tier change";
         }
+
+        // =========================
+        // SIMULATION RESULT
+        // =========================
+        printBox(
+                "SIMULATION RESULT",
+                new String[]{
+                    "Points Earned : +"
+                    + formatPoints(hypothetical)
+                    + " pts",
+                    "New Points    : "
+                    + formatPoints(simulatedPoints)
+                    + " pts",
+                    "New Tier      : "
+                    + simulatedTier,
+                    "Status        : "
+                    + status
+                }
+        );
 
         pressEnterToContinue();
     }
@@ -2955,38 +4145,189 @@ public class LoyaltyUI {
     private void tierDistributionReport() {
 
         clearScreen();
-        printBanner(BANNER_TIERS);
+        printCenteredBanner(BANNER_TIERS);
         printHeader("TIER DISTRIBUTION");
 
         showLoading("Calculating tier distribution...");
-        int[] counts = loyaltyController.membershipTierDistribution();
-        String[] tiers = {"Silver", "Gold", "Elite", "Diamond", "Platinum"};
+
+        int[] counts
+                = loyaltyController.membershipTierDistribution();
+
+        String[] tiers = {
+            "Silver",
+            "Gold",
+            "Elite",
+            "Diamond",
+            "Platinum"
+        };
 
         int totalMembers = 0;
+
         for (int count : counts) {
             totalMembers += count;
         }
 
+        // ==========================================
+        // NO MEMBERS
+        // ==========================================
         if (totalMembers == 0) {
-            System.out.println("\nNo members found.");
+
+            System.out.println();
+
+            printBox(
+                    "TIER DISTRIBUTION",
+                    new String[]{
+                        "No members registered yet."
+                    }
+            );
+
             pressEnterToContinue();
             return;
         }
 
-        System.out.println();
-        System.out.printf("%-10s %-9s %-6s  %s%n", "Tier", "Members", "%", "Chart");
-        printDivider();
+        // ==========================================
+        // COLUMN WIDTHS
+        // ==========================================
+        int tierWidth = 10;
+        int memberWidth = 7;
+        int percentageWidth = 8;
+        int chartWidth = 20;
 
-        int barMaxWidth = 20;
+        /*
+     * Exact width of:
+     *
+     * | Tier       | Members |        % | Chart                |
+     *
+     * The +13 accounts for the spaces and separators.
+         */
+        int tableWidth
+                = tierWidth
+                + memberWidth
+                + percentageWidth
+                + chartWidth
+                + 13;
 
+        // ==========================================
+        // TOP BORDER
+        // ==========================================
+        System.out.println(
+                "+"
+                + "-".repeat(tableWidth - 2)
+                + "+"
+        );
+
+        // ==========================================
+        // TITLE
+        // ==========================================
+        String title = "TIER DISTRIBUTION";
+
+        int titleWidth = tableWidth - 4;
+
+        int leftPadding
+                = (titleWidth - title.length()) / 2;
+
+        int rightPadding
+                = titleWidth
+                - leftPadding
+                - title.length();
+
+        System.out.println(
+                "| "
+                + " ".repeat(leftPadding)
+                + title
+                + " ".repeat(rightPadding)
+                + " |"
+        );
+
+        // ==========================================
+        // HEADER BORDER
+        // ==========================================
+        System.out.println(
+                "+"
+                + "-".repeat(tableWidth - 2)
+                + "+"
+        );
+
+        // ==========================================
+        // TABLE HEADER
+        // ==========================================
+        System.out.printf(
+                "| %-10s | %7s | %8s | %-20s |%n",
+                "Tier",
+                "Members",
+                "%",
+                "Chart"
+        );
+
+        System.out.println(
+                "+"
+                + "-".repeat(tableWidth - 2)
+                + "+"
+        );
+
+        // ==========================================
+        // TIER DATA
+        // ==========================================
         for (int i = 0; i < tiers.length; i++) {
-            int percent = (int) Math.round((double) counts[i] / totalMembers * 100);
-            int barLength = (int) Math.round((double) counts[i] / totalMembers * barMaxWidth);
 
-            String bar = "#".repeat(Math.max(barLength, 0)) + "-".repeat(barMaxWidth - barLength);
+            double percentage
+                    = (double) counts[i]
+                    / totalMembers
+                    * 100;
 
-            System.out.printf("%-10s %-9d %-6s  %s%n", tiers[i], counts[i], percent + "%", bar);
+            int barLength
+                    = (int) Math.round(
+                            (double) counts[i]
+                            / totalMembers
+                            * chartWidth
+                    );
+
+            barLength
+                    = Math.min(
+                            barLength,
+                            chartWidth
+                    );
+
+            String bar
+                    = "#".repeat(barLength);
+
+            System.out.printf(
+                    "| %-10s | %7d | %7.1f%% | %-20s |%n",
+                    tiers[i],
+                    counts[i],
+                    percentage,
+                    bar
+            );
         }
+
+        // ==========================================
+        // TOTAL BORDER
+        // ==========================================
+        System.out.println(
+                "+"
+                + "-".repeat(tableWidth - 2)
+                + "+"
+        );
+
+        // ==========================================
+        // TOTAL ROW
+        // ==========================================
+        System.out.printf(
+                "| %-10s | %7d | %7.1f%% | %-20s |%n",
+                "Total",
+                totalMembers,
+                100.0,
+                ""
+        );
+
+        // ==========================================
+        // BOTTOM BORDER
+        // ==========================================
+        System.out.println(
+                "+"
+                + "-".repeat(tableWidth - 2)
+                + "+"
+        );
 
         pressEnterToContinue();
     }
@@ -2999,7 +4340,7 @@ public class LoyaltyUI {
         while (running) {
 
             clearScreen();
-            printBanner(BANNER_REPORTS);
+            printCenteredBanner(BANNER_REPORTS);
             printHeader("REPORTS & MANAGEMENT");
 
             System.out.print(
@@ -3051,46 +4392,177 @@ public class LoyaltyUI {
         }
     }
 
-    // Displays the top members report.
+    // Displays the member loyalty report.
     private void topMembersReport() {
 
         clearScreen();
-        printBanner(BANNER_REPORTS);
+        printCenteredBanner(BANNER_REPORTS);
         printHeader("MEMBER LOYALTY REPORT");
         printBackHint();
 
-        System.out.println("Filter by Tier (blank = all): Silver / Gold / Elite / Diamond / Platinum");
+        System.out.println(
+                "Filter by Tier (blank = all): "
+                + "Silver / Gold / Elite / Diamond / Platinum"
+        );
 
         String tierFilter = readOptionalTier(
-                "Tier             : ");
+                "Tier             : "
+        );
 
         int minPoints = readNonNegativeInt(
-                "Minimum Points (0 = no minimum) : ");
+                "Minimum Points (0 = no minimum) : "
+        );
 
         int maxPoints = readOptionalNonNegativeInt(
-                "Maximum Points (blank = no maximum) : ");
+                "Maximum Points (blank = no maximum) : "
+        );
 
-        if (maxPoints != Integer.MAX_VALUE && minPoints > maxPoints) {
-            System.out.println(
-                    "\nMaximum Points must be greater than or equal to Minimum Points.");
+        if (maxPoints != Integer.MAX_VALUE
+                && minPoints > maxPoints) {
+
+            printReportBox(
+                    "INVALID FILTER",
+                    new java.util.ArrayList<>(
+                            java.util.List.of(
+                                    "Maximum Points must be greater",
+                                    "than or equal to Minimum Points."
+                            )
+                    )
+            );
+
             pressEnterToContinue();
             return;
         }
 
-        showLoading("Filtering and sorting members...");
+        showLoading(
+                "Filtering and sorting members..."
+        );
 
-        ListInterface<Member> report = loyaltyController.getMemberLoyaltyReport(tierFilter, minPoints, maxPoints);
+        ListInterface<Member> report
+                = loyaltyController.getMemberLoyaltyReport(
+                        tierFilter,
+                        minPoints,
+                        maxPoints
+                );
 
-        System.out.println();
-        System.out.println("Filter : " + (tierFilter.isBlank() ? "All Tiers" : tierFilter)
-                + ", Points " + minPoints + "-" + (maxPoints == Integer.MAX_VALUE ? "Unlimited" : maxPoints));
-        System.out.println("Sort   : Points Descending");
-        System.out.println();
+        // ==========================================
+        // FILTER INFORMATION
+        // ==========================================
+        java.util.ArrayList<String> filterLines
+                = new java.util.ArrayList<>();
 
+        filterLines.add(
+                String.format(
+                        "%-16s : %s",
+                        "Tier",
+                        tierFilter.isBlank()
+                        ? "All Tiers"
+                        : tierFilter
+                )
+        );
+
+        filterLines.add(
+                String.format(
+                        "%-16s : %s",
+                        "Minimum Points",
+                        formatPoints(minPoints)
+                )
+        );
+
+        filterLines.add(
+                String.format(
+                        "%-16s : %s",
+                        "Maximum Points",
+                        maxPoints == Integer.MAX_VALUE
+                                ? "Unlimited"
+                                : formatPoints(maxPoints)
+                )
+        );
+
+        filterLines.add(
+                String.format(
+                        "%-16s : %s",
+                        "Sort",
+                        "Points Descending"
+                )
+        );
+
+        filterLines.add(
+                String.format(
+                        "%-16s : %d",
+                        "Members Found",
+                        report.size()
+                )
+        );
+
+        printReportBox(
+                "REPORT FILTER",
+                filterLines
+        );
+
+        // ==========================================
+        // RESULTS
+        // ==========================================
         if (report.isEmpty()) {
-            System.out.println("No members match this filter.");
+
+            printReportBox(
+                    "MEMBER LOYALTY RESULTS",
+                    new java.util.ArrayList<>(
+                            java.util.List.of(
+                                    "No members match the selected filter."
+                            )
+                    )
+            );
+
         } else {
-            printMemberTable(report, true);
+
+            java.util.ArrayList<String> resultLines
+                    = new java.util.ArrayList<>();
+
+            resultLines.add(
+                    String.format(
+                            "%-6s %-9s %-20s %-12s %10s",
+                            "Rank",
+                            "ID",
+                            "Name",
+                            "Tier",
+                            "Points"
+                    )
+            );
+
+            resultLines.add(
+                    "-".repeat(WIDTH - 4)
+            );
+
+            for (int i = 1; i <= report.size(); i++) {
+
+                Member member
+                        = report.getEntry(i);
+
+                resultLines.add(
+                        String.format(
+                                "%-6d %-9s %-20s %-12s %10s",
+                                i,
+                                safeText(
+                                        member.getMemberId()
+                                ),
+                                safeText(
+                                        member.getName()
+                                ),
+                                safeText(
+                                        member.getTier()
+                                ),
+                                formatPoints(
+                                        member.getPoints()
+                                )
+                        )
+                );
+            }
+
+            printReportBox(
+                    "MEMBER LOYALTY RESULTS",
+                    resultLines
+            );
         }
 
         pressEnterToContinue();
@@ -3100,53 +4572,156 @@ public class LoyaltyUI {
     private void redemptionStatisticsReport() {
 
         clearScreen();
-        printBanner(BANNER_REPORTS);
+        printCenteredBanner(BANNER_REPORTS);
         printHeader("REDEMPTION ANALYSIS");
         printBackHint();
 
         System.out.println(
-                "Filter by Category (blank = all): Dining / Spa / Room / Others");
+                "Filter by Category (blank = all): "
+                + "Dining / Spa / Room / Others"
+        );
 
         String categoryFilter
-                = readOptionalCategory("Category         : ");
+                = readOptionalCategory(
+                        "Category         : "
+                );
 
-        showLoading("Filtering and counting redemptions...");
+        showLoading(
+                "Filtering and counting redemptions..."
+        );
 
-        int total = loyaltyController.getTotalRedemptions();
+        int total
+                = loyaltyController.getTotalRedemptions();
+
         ListInterface<LoyaltyController.CategoryCount> stats
-                = loyaltyController.getRedemptionStatsByCategory(categoryFilter);
+                = loyaltyController.getRedemptionStatsByCategory(
+                        categoryFilter
+                );
 
         int filteredTotal = 0;
+
         for (int i = 1; i <= stats.size(); i++) {
-            filteredTotal += stats.getEntry(i).count;
+
+            filteredTotal
+                    += stats.getEntry(i).count;
         }
 
-        if (stats.isEmpty() || filteredTotal == 0) {
-            System.out.println("\nNo redemption records match this filter.");
+        if (stats.isEmpty()
+                || filteredTotal == 0) {
+
+            printReportBox(
+                    "REDEMPTION ANALYSIS",
+                    new java.util.ArrayList<>(
+                            java.util.List.of(
+                                    "Category Filter : "
+                                    + (categoryFilter.isBlank()
+                                    ? "All Categories"
+                                    : categoryFilter),
+                                    "No redemption records match this filter."
+                            )
+                    )
+            );
+
             pressEnterToContinue();
             return;
         }
 
-        System.out.println();
-        System.out.println("Filter          : " + (categoryFilter.isBlank() ? "All Categories" : categoryFilter));
-        System.out.println("Matching Total  : " + filteredTotal + " (of " + total + " overall)");
-        System.out.println();
+        // ==========================================
+        // ANALYSIS SUMMARY
+        // ==========================================
+        java.util.ArrayList<String> summary
+                = new java.util.ArrayList<>();
 
-        System.out.printf("%-12s %-7s %-6s  %s%n", "Category", "Count", "%", "Chart");
-        printDivider();
+        summary.add(
+                "Category Filter : "
+                + (categoryFilter.isBlank()
+                ? "All Categories"
+                : categoryFilter)
+        );
+
+        summary.add(
+                "Matching Total  : "
+                + filteredTotal
+                + " (of "
+                + total
+                + " overall)"
+        );
+
+        printReportBox(
+                "ANALYSIS SUMMARY",
+                summary
+        );
+
+        // ==========================================
+        // CATEGORY RESULTS
+        // ==========================================
+        java.util.ArrayList<String> categoryLines
+                = new java.util.ArrayList<>();
+
+        categoryLines.add(
+                String.format(
+                        "%-14s %7s %7s   %-20s",
+                        "Category",
+                        "Count",
+                        "%",
+                        "Chart"
+                )
+        );
+
+        categoryLines.add(
+                "-".repeat(WIDTH - 4)
+        );
 
         int barMaxWidth = 20;
 
         for (int i = 1; i <= stats.size(); i++) {
-            LoyaltyController.CategoryCount c = stats.getEntry(i);
 
-            int percent = (int) Math.round((double) c.count / filteredTotal * 100);
-            int barLength = (int) Math.round((double) c.count / filteredTotal * barMaxWidth);
+            LoyaltyController.CategoryCount c
+                    = stats.getEntry(i);
 
-            String bar = "#".repeat(Math.max(barLength, 0)) + "-".repeat(barMaxWidth - barLength);
+            int percent
+                    = (int) Math.round(
+                            (double) c.count
+                            / filteredTotal
+                            * 100
+                    );
 
-            System.out.printf("%-12s %-7d %-6s  %s%n", c.category, c.count, percent + "%", bar);
+            int barLength
+                    = (int) Math.round(
+                            (double) c.count
+                            / filteredTotal
+                            * barMaxWidth
+                    );
+
+            barLength
+                    = Math.min(
+                            barLength,
+                            barMaxWidth
+                    );
+
+            String bar
+                    = "#".repeat(
+                            Math.max(
+                                    barLength,
+                                    0
+                            )
+                    );
+
+            categoryLines.add(
+                    String.format(
+                            "%-14s %7d %6s   %-20s",
+                            safeText(c.category),
+                            c.count,
+                            percent + "%",
+                            bar
+                    )
+            );
         }
+
+        printReportBox(
+                "REDEMPTION BY CATEGORY",
+                categoryLines
+        );
 
         pressEnterToContinue();
     }
@@ -3155,35 +4730,101 @@ public class LoyaltyUI {
     private void rewardPopularityReport() {
 
         clearScreen();
-        printBanner(BANNER_REPORTS);
+        printCenteredBanner(BANNER_REPORTS);
         printHeader("REWARD POPULARITY CHART");
 
-        showLoading("Calculating popularity...");
+        showLoading(
+                "Calculating popularity..."
+        );
 
-        int total = loyaltyController.getTotalRedemptions();
-        ListInterface<RewardPopularity> stats = loyaltyController.getRewardPopularity();
+        int total
+                = loyaltyController.getTotalRedemptions();
+
+        ListInterface<RewardPopularity> stats
+                = loyaltyController.getRewardPopularity();
 
         if (stats.isEmpty() || total == 0) {
-            System.out.println("\nNo redemption records yet.");
+
+            printReportBox(
+                    "REWARD POPULARITY",
+                    new java.util.ArrayList<>(
+                            java.util.List.of(
+                                    "No redemption records yet."
+                            )
+                    )
+            );
+
             pressEnterToContinue();
             return;
         }
 
-        System.out.println();
-        System.out.printf("%-25s %-7s %-6s  %s%n", "Reward", "Count", "%", "Chart");
-        printDivider();
+        java.util.ArrayList<String> lines
+                = new java.util.ArrayList<>();
+
+        lines.add(
+                String.format(
+                        "%-25s %7s %7s   %-20s",
+                        "Reward",
+                        "Count",
+                        "%",
+                        "Chart"
+                )
+        );
+
+        lines.add(
+                "-".repeat(WIDTH - 4)
+        );
 
         int barMaxWidth = 20;
 
         for (int i = 1; i <= stats.size(); i++) {
-            RewardPopularity p = stats.getEntry(i);
-            int percent = (int) Math.round((double) p.count / total * 100);
-            int barLength = (int) Math.round((double) p.count / total * barMaxWidth);
 
-            String bar = "#".repeat(Math.max(barLength, 0)) + "-".repeat(barMaxWidth - barLength);
+            RewardPopularity p
+                    = stats.getEntry(i);
 
-            System.out.printf("%-25s %-7d %-6s  %s%n", p.rewardName, p.count, percent + "%", bar);
+            int percent
+                    = (int) Math.round(
+                            (double) p.count
+                            / total
+                            * 100
+                    );
+
+            int barLength
+                    = (int) Math.round(
+                            (double) p.count
+                            / total
+                            * barMaxWidth
+                    );
+
+            barLength
+                    = Math.min(
+                            barLength,
+                            barMaxWidth
+                    );
+
+            String bar
+                    = "#".repeat(
+                            Math.max(
+                                    barLength,
+                                    0
+                            )
+                    );
+
+            lines.add(
+                    String.format(
+                            "%-25s %7d %6s   %-20s",
+                            safeText(p.rewardName),
+                            p.count,
+                            percent + "%",
+                            bar
+                    )
+            );
         }
+
+        printReportBox(
+                "REWARD POPULARITY",
+                lines
+        );
 
         pressEnterToContinue();
     }
@@ -3192,16 +4833,120 @@ public class LoyaltyUI {
     private void memberRankingReport() {
 
         clearScreen();
-        printBanner(BANNER_REPORTS);
+        printCenteredBanner(BANNER_REPORTS);
         printHeader("MEMBER RANKING");
 
-        showLoading("Calculating rankings...");
+        showLoading(
+                "Calculating rankings..."
+        );
 
-        int total = loyaltyController.getTotalMemberCount();
-        ListInterface<Member> ranked = loyaltyController.topMembersByPoints(total);
+        int total
+                = loyaltyController.getTotalMemberCount();
 
-        System.out.println();
-        printMemberTable(ranked, true);
+        ListInterface<Member> ranked
+                = loyaltyController.topMembersByPoints(
+                        total
+                );
+
+        if (ranked.isEmpty()) {
+
+            printReportBox(
+                    "MEMBER RANKING",
+                    new java.util.ArrayList<>(
+                            java.util.List.of(
+                                    "No members found."
+                            )
+                    )
+            );
+
+            pressEnterToContinue();
+            return;
+        }
+
+        // ==========================================
+        // SUMMARY
+        // ==========================================
+        java.util.ArrayList<String> summary
+                = new java.util.ArrayList<>();
+
+        summary.add(
+                String.format(
+                        "%-18s : %d",
+                        "Total Members",
+                        total
+                )
+        );
+
+        summary.add(
+                String.format(
+                        "%-18s : Points Balance",
+                        "Ranking Basis"
+                )
+        );
+
+        summary.add(
+                String.format(
+                        "%-18s : Highest to Lowest",
+                        "Order"
+                )
+        );
+
+        printReportBox(
+                "RANKING SUMMARY",
+                summary
+        );
+
+        // ==========================================
+        // RANKING TABLE
+        // ==========================================
+        java.util.ArrayList<String> rankingLines
+                = new java.util.ArrayList<>();
+
+        rankingLines.add(
+                String.format(
+                        "%-6s %-9s %-22s %-12s %10s",
+                        "Rank",
+                        "ID",
+                        "Member",
+                        "Tier",
+                        "Points"
+                )
+        );
+
+        // Full-width separator
+        rankingLines.add(
+                "-".repeat(WIDTH - 4)
+        );
+
+        for (int i = 1; i <= ranked.size(); i++) {
+
+            Member member
+                    = ranked.getEntry(i);
+
+            rankingLines.add(
+                    String.format(
+                            "%-6d %-9s %-22s %-12s %10s",
+                            i,
+                            safeText(
+                                    member.getMemberId()
+                            ),
+                            safeText(
+                                    member.getName()
+                            ),
+                            safeText(
+                                    member.getTier()
+                            ),
+                            formatPoints(
+                                    member.getPoints()
+                            )
+                    )
+            );
+        }
+
+        printReportBox(
+                "MEMBER RANKING",
+                rankingLines
+        );
 
         pressEnterToContinue();
     }
@@ -3210,70 +4955,153 @@ public class LoyaltyUI {
     private void systemStatisticsDashboard() {
 
         clearScreen();
-        printBanner(BANNER_REPORTS);
+        printCenteredBanner(BANNER_REPORTS);
         printHeader("SYSTEM STATISTICS");
+
+        showLoading(
+                "Gathering system statistics..."
+        );
 
         int[] tierCounts
                 = loyaltyController.membershipTierDistribution();
 
-        showLoading("Gathering system statistics...");
+        int totalMembers
+                = loyaltyController.getTotalMemberCount();
 
-        System.out.println();
+        int rewardTypes
+                = loyaltyController.getTotalRewardTypes();
 
-        System.out.printf(
-                "%-30s %-20s%n",
-                "Metric",
-                "Value"
-        );
+        int totalPoints
+                = loyaltyController.getTotalPointsAcrossMembers();
 
-        printDivider();
+        int totalRedemptions
+                = loyaltyController.getTotalRedemptions();
 
-        System.out.printf(
-                "%-30s %-20d%n",
-                "Total Members",
-                loyaltyController.getTotalMemberCount()
-        );
+        int transactionsToday
+                = loyaltyController.getTransactionsTodayCount();
 
-        System.out.printf(
-                "%-30s %-20d%n",
-                "Reward Types",
-                loyaltyController.getTotalRewardTypes()
-        );
+        String popularCategory
+                = loyaltyController.getMostPopularCategory();
 
-        System.out.printf(
-                "%-30s %-20s%n",
-                "Total Points",
-                formatPoints(
-                        loyaltyController.getTotalPointsAcrossMembers()
+        // ==========================================
+        // SYSTEM OVERVIEW
+        // ==========================================
+        java.util.ArrayList<String> overview
+                = new java.util.ArrayList<>();
+
+        overview.add(
+                String.format(
+                        "%-25s : %d",
+                        "Total Members",
+                        totalMembers
                 )
         );
 
-        System.out.printf(
-                "%-30s %-20d%n",
-                "Rewards Redeemed",
-                loyaltyController.getTotalRedemptions()
+        overview.add(
+                String.format(
+                        "%-25s : %d",
+                        "Reward Types",
+                        rewardTypes
+                )
         );
 
-        System.out.printf(
-                "%-30s %-20d%n",
-                "Transactions Today",
-                loyaltyController.getTransactionsTodayCount()
+        overview.add(
+                String.format(
+                        "%-25s : %s pts",
+                        "Total Points",
+                        formatPoints(totalPoints)
+                )
         );
 
-        System.out.printf(
-                "%-30s %-20s%n",
-                "Most Popular Category",
-                loyaltyController.getMostPopularCategory()
+        overview.add(
+                String.format(
+                        "%-25s : %d",
+                        "Rewards Redeemed",
+                        totalRedemptions
+                )
         );
 
-        System.out.printf(
-                "%-30s %-20d%n",
-                "Platinum Members",
-                tierCounts[4]
+        overview.add(
+                String.format(
+                        "%-25s : %d",
+                        "Transactions Today",
+                        transactionsToday
+                )
         );
 
-        printDivider();
+        overview.add(
+                String.format(
+                        "%-25s : %s",
+                        "Most Popular Category",
+                        safeText(popularCategory)
+                )
+        );
 
+        printReportBox(
+                "SYSTEM OVERVIEW",
+                overview
+        );
+
+        // ==========================================
+        // MEMBERSHIP TIER SUMMARY
+        // ==========================================
+        String[] tiers = {
+            "Silver",
+            "Gold",
+            "Elite",
+            "Diamond",
+            "Platinum"
+        };
+
+        java.util.ArrayList<String> tierLines
+                = new java.util.ArrayList<>();
+
+        tierLines.add(
+                String.format(
+                        "%-18s %10s",
+                        "Tier",
+                        "Members"
+                )
+        );
+
+        tierLines.add(
+                "-".repeat(WIDTH - 4)
+        );
+
+        for (int i = 0; i < tiers.length; i++) {
+
+            int count
+                    = i < tierCounts.length
+                            ? tierCounts[i]
+                            : 0;
+
+            tierLines.add(
+                    String.format(
+                            "%-18s %10d",
+                            tiers[i],
+                            count
+                    )
+            );
+        }
+
+        tierLines.add(
+                "-".repeat(WIDTH - 4)
+        );
+
+        tierLines.add(
+                String.format(
+                        "%-18s %10d",
+                        "Total",
+                        totalMembers
+                )
+        );
+
+        printReportBox(
+                "MEMBERSHIP TIER SUMMARY",
+                tierLines
+        );
+
+        // NO QUICK INSIGHTS HERE
         pressEnterToContinue();
     }
 
@@ -3311,24 +5139,32 @@ public class LoyaltyUI {
         }
     }
 
-    // Displays a controller result.
+    // Displays a controller result in a dynamically sized box.
     private void printResult(ControllerResult result) {
 
-        System.out.println();
+        String status = result.isOk()
+                ? "Operation completed successfully."
+                : "Operation failed.";
 
-        if (result.isOk()) {
-            System.out.println("----------------------------------------");
-            System.out.println("Operation completed successfully.");
-            if (result.getMessage() != null) {
-                System.out.println(result.getMessage());
-            }
-            System.out.println("----------------------------------------");
-        } else {
-            System.out.println("----------------------------------------");
-            System.out.println("Operation failed.");
-            System.out.println(result.getMessage());
-            System.out.println("----------------------------------------");
+        String message = result.getMessage();
+
+        int contentWidth = status.length();
+
+        if (message != null && !message.isBlank()) {
+            contentWidth = Math.max(contentWidth, message.length());
         }
+
+        int boxWidth = contentWidth + 4;
+
+        System.out.println();
+        System.out.println("-".repeat(boxWidth));
+        System.out.printf("| %-" + contentWidth + "s |%n", status);
+
+        if (message != null && !message.isBlank()) {
+            System.out.printf("| %-" + contentWidth + "s |%n", message);
+        }
+
+        System.out.println("-".repeat(boxWidth));
     }
 
     // Waits for the user to continue.

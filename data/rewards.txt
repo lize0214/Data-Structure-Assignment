@@ -1,6 +1,6 @@
-R001,Spa Voucher,Spa,500,8
+R001,Spa Voucher,Spa,500,10
 R002,Dining Voucher,Dining,800,5
-R003,Room Upgrade,Room,1500,3
+R003,Room Upgrade,Room,1500,2
 R004,Executive Lounge Access,Lounge,2500,2
 R005,Free Breakfast,Dining,300,20
 R006,Airport Transfer,Transport,1200,0
@@ -10,3 +10,4 @@ R009,Late Checkout,Room,700,8
 R010,Weekend Stay,Accommodation,5000,2
 R011,Afternoon Tea,Dining,600,6
 R012,Poolside Cabana,Leisure,1800,2
+R013,Towels GiftSet,Spa,1000,48
